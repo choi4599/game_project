@@ -17,7 +17,7 @@ d3d11.lib / dxgi.lib / d3dcompiler.lib / windowscodecs.lib
 ## 빌드 방법
 
 Visual Studio 에서 해당 리포지토리 복제
-https://github.com/choi4599/game_project
+https://github.com/choi4599/game_project.git
 
 ---
 
