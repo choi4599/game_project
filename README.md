@@ -16,10 +16,8 @@ d3d11.lib / dxgi.lib / d3dcompiler.lib / windowscodecs.lib
 
 ## 빌드 방법
 
-1. Visual Studio 에서 `main.cpp` 를 새 빈 프로젝트에 추가
-2. 프로젝트 속성 → C/C++ → 언어 → **C++ 언어 표준 : ISO C++17**
-3. 프로젝트 속성 → 링커 → 입력 → 추가 종속성에 위 라이브러리 추가
-4. 빌드 후 실행 파일 옆에 텍스처 PNG 파일 배치 (없어도 단색으로 동작)
+Visual Studio 에서 해당 리포지토리 복제
+https://github.com/choi4599/game_project
 
 ---
 
@@ -60,6 +58,7 @@ d3d11.lib / dxgi.lib / d3dcompiler.lib / windowscodecs.lib
 ## 텍스처 적용 방법
 
 실행 파일과 **같은 폴더**에 PNG 파일을 배치합니다.
+*현재 넣어둔 png파일은 테스트용으로 넣어둔 것이니 자유롭게 수정하셔도 됩니다.
 
 ```
 game.exe
@@ -98,6 +97,8 @@ AddPlatform(PlatformType::PassThrough, -2.0f,  7.0f,  0.5f, 7.2f);
 ```
 
 좌표를 모를 때는 플라이 모드(`F`)로 이동 후 마우스 좌클릭으로 월드 좌표를 확인합니다.
+
+*현재 배치해둔 플렛폼은 테스트용으로 배치해둔 것이니 자유롭게 수정하셔도 됩니다.
 
 ---
 
