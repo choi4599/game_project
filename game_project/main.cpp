@@ -1,34 +1,34 @@
-// ============================================================
+/// ============================================================
 //  JumpKing-Style Platformer  |  DirectX 11  |  Single File
 //
-//  ¡Ú È®Àå °¡ÀÌµå ¡Ú
-//  ¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡
-//  [»õ ÇÃ·§Æû ¹èÄ¡]
-//    BuildMap() ¾È¿¡ ÇÑ ÁÙ Ãß°¡:
-//    AddPlatform(Å¸ÀÔ, LX, BY, RX, TY);            // ´Ü»ö
-//    AddPlatform(Å¸ÀÔ, LX, BY, RX, TY, L"tex.png"); // ÅØ½ºÃ³
+//  â˜… í™•ìž¥ ê°€ì´ë“œ â˜…
+//  â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//  [ìƒˆ í”Œëž«í¼ ë°°ì¹˜]
+//    BuildMap() ì•ˆì— í•œ ì¤„ ì¶”ê°€:
+//    AddPlatform(íƒ€ìž…, LX, BY, RX, TY);            // ë‹¨ìƒ‰
+//    AddPlatform(íƒ€ìž…, LX, BY, RX, TY, L"tex.png"); // í…ìŠ¤ì²˜
 //
-//  [»õ ÇÃ·§Æû Å¸ÀÔ Ãß°¡]
-//    1. PlatformType ¿­°ÅÇü¿¡ Ç×¸ñ Ãß°¡
-//    2. AddPlatform() ÀÇ switch ¿¡ ±âº» »ö»ó Ãß°¡
-//    3. PlayerController::UpdateMovement() ÀÇ
-//       Å¸ÀÔº° ºÐ±â(2´Ü°è)¿¡ ÀÌµ¿ µ¿ÀÛ Ãß°¡
-//    ¡Ø Á¡ÇÁ Áß ÀÌµ¿ Â÷´Ü(1´Ü°è)Àº ÀÚµ¿ Àû¿ëµÊ
+//  [ìƒˆ í”Œëž«í¼ íƒ€ìž… ì¶”ê°€]
+//    1. PlatformType ì—´ê±°í˜•ì— í•­ëª© ì¶”ê°€
+//    2. AddPlatform() ì˜ switch ì— ê¸°ë³¸ ìƒ‰ìƒ ì¶”ê°€
+//    3. PlayerController::UpdateMovement() ì˜
+//       íƒ€ìž…ë³„ ë¶„ê¸°(2ë‹¨ê³„)ì— ì´ë™ ë™ìž‘ ì¶”ê°€
+//    â€» ì í”„ ì¤‘ ì´ë™ ì°¨ë‹¨(1ë‹¨ê³„)ì€ ìžë™ ì ìš©ë¨
 //
-//  [»õ ÄÄÆ÷³ÍÆ® Ãß°¡]
-//    Component ¸¦ »ó¼Ó ¡æ Start/Input/Update/Render ¿À¹ö¶óÀÌµå
-//    ¿øÇÏ´Â GameObject ¿¡ AddComponent() ·Î ºÙÀÌ¸é ³¡
+//  [ìƒˆ ì»´í¬ë„ŒíŠ¸ ì¶”ê°€]
+//    Component ë¥¼ ìƒì† â†’ Start/Input/Update/Render ì˜¤ë²„ë¼ì´ë“œ
+//    ì›í•˜ëŠ” GameObject ì— AddComponent() ë¡œ ë¶™ì´ë©´ ë
 //
-//  [ÅØ½ºÃ³]
-//    ½ÇÇàÆÄÀÏ ¿·¿¡ PNG ¹èÄ¡ ÈÄ AddPlatform ¸¶Áö¸· ÀÎÀÚ·Î °æ·Î Àü´Þ
-//    °°Àº ÆÄÀÏÀº TexCache °¡ ÀÚµ¿À¸·Î Áßº¹ ·Îµå¸¦ ¹æÁöÇÔ
-// ¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡
-// ±¸Çö ³»¿ë 
+//  [í…ìŠ¤ì²˜]
+//    ì‹¤í–‰íŒŒì¼ ì˜†ì— PNG ë°°ì¹˜ í›„ AddPlatform ë§ˆì§€ë§‰ ì¸ìžë¡œ ê²½ë¡œ ì „ë‹¬
+//    ê°™ì€ íŒŒì¼ì€ TexCache ê°€ ìžë™ìœ¼ë¡œ ì¤‘ë³µ ë¡œë“œë¥¼ ë°©ì§€í•¨
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// êµ¬í˜„ ë‚´ìš© 
 // 2026.05.08
-// °ÔÀÓ ·çÇÁ ±âº» ±¸Á¶, Ä«¸Þ¶ó ÃßÀû
-// ¹°¸® : Áß·Â, °¡¼Óµµ ±â¹Ý Áö¸é ÀÌµ¿(ÃÖ°í¼Óµµ Å¬·¥ÇÁ), °øÁß °ü¼º À¯Áö + ¾àÇÑ º¸Á¤, Á¡ÇÁ ÃæÀü ½Ã½ºÅÛ(È¦µå ¡æ ¸±¸®Áî), Á¡ÇÁ Áß ÀÌµ¿ Â÷´Ü(¸ðµç Å¸ÀÔ °øÅë), °øÁß ÀçÁ¡ÇÁ ¹æÁö, AABB Ãæµ¹ ÇØ°á(ÃÖ¼Ò Ä§Åõ ¹æÇâ ¹Ð¾î³¿)
-// ÇÃ·¿Æû : normal, ice, passThrough 
-// Á¶ÀÛÅ° : ¹æÇâÅ°(ÀÌµ¿), space(Á¡ÇÁ), f(fly), c/r(checkpoint), esc(Á¾·á), ¸¶¿ì½º ÁÂÅ¬¸¯(ÄÜ¼Ö ÁÂÇ¥ Ãâ·Â)
+// ê²Œìž„ ë£¨í”„ ê¸°ë³¸ êµ¬ì¡°, ì¹´ë©”ë¼ ì¶”ì 
+// ë¬¼ë¦¬ : ì¤‘ë ¥, ê°€ì†ë„ ê¸°ë°˜ ì§€ë©´ ì´ë™(ìµœê³ ì†ë„ í´ëž¨í”„), ê³µì¤‘ ê´€ì„± ìœ ì§€ + ì•½í•œ ë³´ì •, ì í”„ ì¶©ì „ ì‹œìŠ¤í…œ(í™€ë“œ â†’ ë¦´ë¦¬ì¦ˆ), ì í”„ ì¤‘ ì´ë™ ì°¨ë‹¨(ëª¨ë“  íƒ€ìž… ê³µí†µ), ê³µì¤‘ ìž¬ì í”„ ë°©ì§€, AABB ì¶©ëŒ í•´ê²°(ìµœì†Œ ì¹¨íˆ¬ ë°©í–¥ ë°€ì–´ëƒ„)
+// í”Œë ›í¼ : normal, ice, passThrough 
+// ì¡°ìž‘í‚¤ : ë°©í–¥í‚¤(ì´ë™), space(ì í”„), f(fly), c/r(checkpoint), esc(ì¢…ë£Œ), ë§ˆìš°ìŠ¤ ì¢Œí´ë¦­(ì½˜ì†” ì¢Œí‘œ ì¶œë ¥)
 // ============================================================
 
 #include <windows.h>
@@ -52,19 +52,19 @@
 using namespace DirectX;
 
 // ============================================================
-//  Àü¹æ ¼±¾ð
+//  ì „ë°© ì„ ì–¸
 // ============================================================
 class GraphicsContext;
 class GameObject;
 
 // ============================================================
-//  È­¸é »ó¼ö
+//  í™”ë©´ ìƒìˆ˜
 // ============================================================
 static constexpr int SCREEN_W = 800;
 static constexpr int SCREEN_H = 600;
 
 // ============================================================
-//  ¹°¸® »ó¼ö  ¦¡  °ÔÀÓ ´À³¦ Á¶Á¤Àº ¿©±â¼­
+//  ë¬¼ë¦¬ ìƒìˆ˜  â”€  ê²Œìž„ ëŠë‚Œ ì¡°ì •ì€ ì—¬ê¸°ì„œ
 // ============================================================
 static constexpr float GRAVITY = -18.0f;
 static constexpr float JUMP_MAX = 9.0f;
@@ -76,11 +76,11 @@ static constexpr float ICE_DRAG = 0.5f;
 static constexpr float AIR_ACCEL = 2.0f;
 static constexpr float BRAKE_ACCEL = 10.0f;
 static constexpr float FLY_SPEED = 8.0f;
-static constexpr float GROUND_ACCEL = 10.0f;  // Áö¸é °¡¼Óµµ (³ôÀ»¼ö·Ï ºü¸£°Ô ÃÖ°í¼Ó µµ´Þ)
-static constexpr float GROUND_DECEL = 20.0f;  // Áö¸é °¨¼Óµµ (ÀÔ·Â ¾øÀ» ¶§)
+static constexpr float GROUND_ACCEL = 10.0f;  // ì§€ë©´ ê°€ì†ë„ (ë†’ì„ìˆ˜ë¡ ë¹ ë¥´ê²Œ ìµœê³ ì† ë„ë‹¬)
+static constexpr float GROUND_DECEL = 20.0f;  // ì§€ë©´ ê°ì†ë„ (ìž…ë ¥ ì—†ì„ ë•Œ)
 
 // ============================================================
-//  ±âº» ÀÚ·áÇü
+//  ê¸°ë³¸ ìžë£Œí˜•
 // ============================================================
 struct Vec2 { float x = 0, y = 0; };
 
@@ -109,11 +109,11 @@ struct AABB
 };
 
 // ============================================================
-//  ÇÃ·§Æû Å¸ÀÔ
-//  ¡Ú »õ Å¸ÀÔ Ãß°¡ ½Ã:
-//     1. ¿©±â¿¡ ¿­°Å°ª Ãß°¡
-//     2. AddPlatform() switch ¿¡ ±âº»»ö Ãß°¡
-//     3. UpdateMovement() 2´Ü°è ºÐ±â¿¡ ÀÌµ¿ µ¿ÀÛ Ãß°¡
+//  í”Œëž«í¼ íƒ€ìž…
+//  â˜… ìƒˆ íƒ€ìž… ì¶”ê°€ ì‹œ:
+//     1. ì—¬ê¸°ì— ì—´ê±°ê°’ ì¶”ê°€
+//     2. AddPlatform() switch ì— ê¸°ë³¸ìƒ‰ ì¶”ê°€
+//     3. UpdateMovement() 2ë‹¨ê³„ ë¶„ê¸°ì— ì´ë™ ë™ìž‘ ì¶”ê°€
 // ============================================================
 enum class PlatformType { Normal, Ice, PassThrough };
 
@@ -216,7 +216,7 @@ public:
         if (FAILED(hr)) return false;
         if (!CreateRTV()) return false;
 
-        // Æ÷ÀÎÆ® »ùÇÃ·¯ (ÇÈ¼¿¾ÆÆ® Å×µÎ¸® ¹øÁü ¹æÁö)
+        // í¬ì¸íŠ¸ ìƒ˜í”ŒëŸ¬ (í”½ì…€ì•„íŠ¸ í…Œë‘ë¦¬ ë²ˆì§ ë°©ì§€)
         D3D11_SAMPLER_DESC smpDesc = {};
         smpDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
         smpDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
@@ -224,7 +224,7 @@ public:
         smpDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
         Device->CreateSamplerState(&smpDesc, &Sampler);
 
-        // ¾ËÆÄ ºí·»µå (PNG Åõ¸í Ã³¸®)
+        // ì•ŒíŒŒ ë¸”ë Œë“œ (PNG íˆ¬ëª… ì²˜ë¦¬)
         D3D11_BLEND_DESC bd = {};
         bd.RenderTarget[0].BlendEnable = TRUE;
         bd.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
@@ -296,7 +296,7 @@ public:
 };
 
 // ============================================================
-//  ÅØ½ºÃ³ ·Î´õ (WIC)
+//  í…ìŠ¤ì²˜ ë¡œë” (WIC)
 // ============================================================
 ID3D11ShaderResourceView* LoadTextureFromFile(GraphicsContext* gfx,
     const wchar_t* path)
@@ -313,7 +313,7 @@ ID3D11ShaderResourceView* LoadTextureFromFile(GraphicsContext* gfx,
     if (FAILED(factory->CreateDecoderFromFilename(path, nullptr,
         GENERIC_READ, WICDecodeMetadataCacheOnLoad, &decoder)))
     {
-        printf("[Texture] ÆÄÀÏ ¿­±â ½ÇÆÐ: %ls\n", path);
+        printf("[Texture] íŒŒì¼ ì—´ê¸° ì‹¤íŒ¨: %ls\n", path);
         factory->Release();
         return nullptr;
     }
@@ -347,14 +347,14 @@ ID3D11ShaderResourceView* LoadTextureFromFile(GraphicsContext* gfx,
     tex->Release(); converter->Release();
     frame->Release(); decoder->Release(); factory->Release();
 
-    printf("[Texture] ·Îµå ¼º°ø: %ls (%ux%u)\n", path, w, h);
+    printf("[Texture] ë¡œë“œ ì„±ê³µ: %ls (%ux%u)\n", path, w, h);
     return srv;
 }
 
 // ============================================================
 //  TextureCache
-//  ¦¡ °°Àº ÆÄÀÏ °æ·Î´Â ÇÑ ¹ø¸¸ ·ÎµåÇÕ´Ï´Ù.
-//  ¦¡ ¼Ò¸êÀÚ¿¡¼­ ¸ðµç SRV ¸¦ ÀÏ°ý ÇØÁ¦ÇÕ´Ï´Ù.
+//  â”€ ê°™ì€ íŒŒì¼ ê²½ë¡œëŠ” í•œ ë²ˆë§Œ ë¡œë“œí•©ë‹ˆë‹¤.
+//  â”€ ì†Œë©¸ìžì—ì„œ ëª¨ë“  SRV ë¥¼ ì¼ê´„ í•´ì œí•©ë‹ˆë‹¤.
 // ============================================================
 class TextureCache
 {
@@ -363,7 +363,7 @@ class TextureCache
 public:
     void Init(GraphicsContext* g) { gfx = g; }
 
-    // path == nullptr ÀÌ¸é nullptr ¹ÝÈ¯ (ÅØ½ºÃ³ ¾øÀ½ ¡æ ´Ü»ö Æú¹é)
+    // path == nullptr ì´ë©´ nullptr ë°˜í™˜ (í…ìŠ¤ì²˜ ì—†ìŒ â†’ ë‹¨ìƒ‰ í´ë°±)
     ID3D11ShaderResourceView* Get(const wchar_t* path)
     {
         if (!path) return nullptr;
@@ -426,7 +426,7 @@ public:
 };
 
 // ============================================================
-//  Material ±â¹Ý
+//  Material ê¸°ë°˜
 // ============================================================
 class Material
 {
@@ -437,7 +437,7 @@ public:
     virtual void Bind(GraphicsContext* gfx) = 0;
 };
 
-// ¦¡¦¡ ColorMaterial : ´Ü»ö ¶Ç´Â ÅØ½ºÃ³ ¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡
+// â”€â”€ ColorMaterial : ë‹¨ìƒ‰ ë˜ëŠ” í…ìŠ¤ì²˜ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class ColorMaterial : public Material
 {
 public:
@@ -455,7 +455,7 @@ public:
         gfx->Device->CreateBuffer(&bd, nullptr, &CB);
     }
 
-    // ÅØ½ºÃ³¸¦ ¿¬°áÇÏ¸é tintColor ¸¦ Èò»ö(Áß¸³)À¸·Î ÀÚµ¿ º¯°æ
+    // í…ìŠ¤ì²˜ë¥¼ ì—°ê²°í•˜ë©´ tintColor ë¥¼ í°ìƒ‰(ì¤‘ë¦½)ìœ¼ë¡œ ìžë™ ë³€ê²½
     void SetTexture(ID3D11ShaderResourceView* srv)
     {
         TexSRV = srv;
@@ -630,8 +630,8 @@ public:
 
 // ============================================================
 //  PlatformComp
-//  ¦¡ AABB ¸¦ GameObject ÀÇ Pos/Scale ¿¡¼­ °è»êÇÕ´Ï´Ù.
-//    ÀÌ·¸°Ô ÇÏ¸é ³ªÁß¿¡ ÇÃ·§ÆûÀ» ¿òÁ÷¿©µµ Ãæµ¹ÀÌ µû¶ó¿É´Ï´Ù.
+//  â”€ AABB ë¥¼ GameObject ì˜ Pos/Scale ì—ì„œ ê³„ì‚°í•©ë‹ˆë‹¤.
+//    ì´ë ‡ê²Œ í•˜ë©´ ë‚˜ì¤‘ì— í”Œëž«í¼ì„ ì›€ì§ì—¬ë„ ì¶©ëŒì´ ë”°ë¼ì˜µë‹ˆë‹¤.
 // ============================================================
 class PlatformComp : public Component
 {
@@ -655,53 +655,78 @@ public:
 
 // ============================================================
 //  PlayerController
-//  ¦¡ Platforms Æ÷ÀÎÅÍ¸¦ ¿ÜºÎ¿¡¼­ ÁÖÀÔ¹Þ½À´Ï´Ù (Àü¿ª Á¦°Å).
-//  ¦¡ ÀÌµ¿ Ã³¸®¸¦ UpdateMovement() ·Î ºÐ¸®Çß½À´Ï´Ù.
-//    Á¡ÇÁ ÃæÀü Áß ÀÌµ¿ Â÷´ÜÀº Å¸ÀÔ°ú ¹«°üÇÏ°Ô 1´Ü°è¿¡¼­ Ã³¸®µÇ¹Ç·Î
-//    »õ Å¸ÀÔÀ» Ãß°¡ÇØµµ ÀÌ µ¿ÀÛÀº ÀÚµ¿À¸·Î Àû¿ëµË´Ï´Ù.
+//  â”€ Platforms í¬ì¸í„°ë¥¼ ì™¸ë¶€ì—ì„œ ì£¼ìž…ë°›ìŠµë‹ˆë‹¤ (ì „ì—­ ì œê±°).
+//  â”€ ì´ë™ ì²˜ë¦¬ë¥¼ UpdateMovement() ë¡œ ë¶„ë¦¬í–ˆìŠµë‹ˆë‹¤.
+//    ì í”„ ì¶©ì „ ì¤‘ ì´ë™ ì°¨ë‹¨ì€ íƒ€ìž…ê³¼ ë¬´ê´€í•˜ê²Œ 1ë‹¨ê³„ì—ì„œ ì²˜ë¦¬ë˜ë¯€ë¡œ
+//    ìƒˆ íƒ€ìž…ì„ ì¶”ê°€í•´ë„ ì´ ë™ìž‘ì€ ìžë™ìœ¼ë¡œ ì ìš©ë©ë‹ˆë‹¤.
 // ============================================================
+
+/*
+ì¶”ê°€ëœ ë¡œì§
+1. ì í”„ ì‹œ ì§€ë©´ ëª¨ì„œë¦¬ì— ë¶€ë”ªížˆëŠ” ê²½ìš° íŠ•ê²¨ì ¸ ë‚˜ì˜¤ëŠ” ë¡œì§
+2. ìºë¦­í„° ì í”„ ì‹œ ìºë¦­í„°ê°€ íšŒì „ í›„ ë°”ë‹¥ì— ì°©ì§€ ì‹œ íšŒì „ë¥  ì´ˆê¸°í™”ë¡œ ì •ìƒì ì´ê²Œ ë³´ì´ê²Œë” ì„¤ì •
+3. ì½”ìš”í…Œ íƒ€ìž„ ì¶”ê°€ -> ìºë¦­í„°ê°€ í—ˆê³µì— ë– ë„ 0.1ì´ˆ ê°„ ì í”„ë¥¼ í—ˆìš©í•˜ì—¬ ì–µìš¸í•˜ê²Œ ì¶”ë½í•˜ëŠ” ê²ƒì„ ë°©ì§€
+4. ê³µì¤‘ì—ì„œ ìºë¦­í„°ì˜ ìœ„ì¹˜ ì œì–´ ê¸°ëŠ¥ (ë¬¼ë¦¬ ì—”ì§„)
+5. ì í”„ ë²„í¼ -> ì°©ì§€ ì§ì „ 0.15ì´ˆ ë‚´ì— ìž…ë ¥ëœ ì í”„ ëª…ë ¹ì„ ìž…ë ¥í•˜ê³  ì°©ì§€ ì¦‰ì‹œ ì í”„ê°€ ê°€ëŠ¥í•˜ê²Œë” êµ¬í˜„ 
+    << ì´ ë¶€ë¶„ì€ ì°¨ì§• ì í”„ì—¬ì„œ êµ³ì´ ì—†ì–´ë„ ë˜ì§€ ì•Šì„ê¹Œ ì‹¶ìŠµë‹ˆë‹¤!
+*/
+
 class PlayerController : public Component
 {
 public:
-    // ¦¡¦¡ ¿ÜºÎ ÁÖÀÔ ¦¡¦¡
+    // â”€â”€ ì™¸ë¶€ ì£¼ìž… â”€â”€
     std::vector<GameObject*>* Platforms = nullptr;
 
-    // ¦¡¦¡ ¹°¸® »óÅÂ ¦¡¦¡
+    // â”€â”€ ë¬¼ë¦¬ ìƒíƒœ â”€â”€
     Vec2  Vel = { 0, 0 };
     bool  OnGround = false;
     float HalfW = 0.3f;
     float HalfH = 0.3f;
 
-    // ¦¡¦¡ Á¡ÇÁ ¦¡¦¡
+    // â”€â”€ ì í”„ ìƒíƒœ (ì¶©ì „ ì‹œìŠ¤í…œ) â”€â”€
+    bool  PrevSpace = false;
+    bool  SpacePressedThisFrame = false;
     bool  SpaceHeld = false;
     float JumpCharge = 0.0f;
     bool  JumpedThisPress = false;
 
-    // ¦¡¦¡ ÀÔ·Â ¦¡¦¡
+    // â”€â”€ ê³ ê¸‰ ì¡°ìž‘ê° íƒ€ì´ë¨¸ (í”Œëž«í¬ë¨¸ í•„ìˆ˜ ê¸°ìˆ ) â”€â”€
+    float CoyoteTimer = 0.0f;        // ì½”ìš”í…Œ íƒ€ìž„ 
+    float JumpBufferTimer = 0.0f;    // ì í”„ ë²„í¼ë§ 
+    float CurrentShakeX = 0.0f;      // í”ë“¤ë¦¼ ì—°ì¶œ ëˆ„ì  ë°©ì§€ìš© ë³€ìˆ˜
+
+    // â”€â”€ ì í”„í‚¹ íŠ¹í™” ìƒíƒœ (ì¡°ìž‘ ë¶ˆê°€) â”€â”€
+    bool  IsStunned = false;
+
+    // â”€â”€ ìž…ë ¥ â”€â”€
     float MoveInput = 0.0f;
 
-    // ¦¡¦¡ Áö¸é Å¸ÀÔ ÇÃ·¡±× ¦¡¦¡
+    // â”€â”€ ì§€ë©´ íƒ€ìž… í”Œëž˜ê·¸ â”€â”€
     bool  OnIce = false;
 
-    // ¦¡¦¡ °³¹ß µµ±¸ ¦¡¦¡
+    // â”€â”€ íŠ•ê¹€(Bounce) ì„¤ì • â”€â”€
+    float BounceFactor = 0.85f;   // íŠ•ê¸¸ ë•Œ ë³´ì¡´ë˜ëŠ” ì†ë„ ë¹„ìœ¨ 
+    float MinBounceSpeed = 3.0f;  // ì‚´ì§ ë¶€ë”ªí˜€ë„ ë¬´ì¡°ê±´ íŠ•ê²¨ë‚˜ê°€ëŠ” ìµœì†Œ ì†ë„
+
+    // â”€â”€ ê°œë°œ ë„êµ¬ â”€â”€
     bool  FlyMode = false;
     Vec2  Checkpoint = { 0, 0.5f };
 
-    // ¦¡¦¡ ¿§Áö °¨Áö ¦¡¦¡
+    // â”€â”€ ì—£ì§€ ê°ì§€ â”€â”€
     bool PrevF = false, PrevR = false, PrevC = false;
 
-    // ¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     void Input() override
     {
         bool spaceNow = (GetAsyncKeyState(VK_SPACE) & 0x8000) != 0;
+        SpacePressedThisFrame = spaceNow && !PrevSpace;
+        SpaceHeld = spaceNow;
+        PrevSpace = spaceNow;
+
         bool fNow = (GetAsyncKeyState('F') & 0x8000) != 0;
         bool rNow = (GetAsyncKeyState('R') & 0x8000) != 0;
         bool cNow = (GetAsyncKeyState('C') & 0x8000) != 0;
 
-        SpaceHeld = spaceNow;
-
-        // ¹æÇâ ÀÔ·ÂÀº Ç×»ó ÀÐÀ½
-        // (ÃæÀü Áß¿¡´Â Update ¿¡¼­ ÀÌµ¿¿¡ ¹Ý¿µÇÏÁö ¾Ê°í ¹ß»ç ¹æÇâ¿¡¸¸ »ç¿ë)
         MoveInput = 0.0f;
         if (GetAsyncKeyState(VK_LEFT) & 0x8000) MoveInput -= 1.0f;
         if (GetAsyncKeyState(VK_RIGHT) & 0x8000) MoveInput += 1.0f;
@@ -725,7 +750,7 @@ public:
         PrevF = fNow; PrevR = rNow; PrevC = cNow;
     }
 
-    // ¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     void Update(float dt) override
     {
         if (FlyMode) { UpdateFly(dt); return; }
@@ -735,96 +760,142 @@ public:
         UpdateMovement(dt);
         UpdateJump(dt);
 
+        // ìˆœìˆ˜ ë¬¼ë¦¬ ì´ë™ë§Œ ì ìš©
         Owner->Pos.x += Vel.x * dt;
         Owner->Pos.y += Vel.y * dt;
 
-        ResolveAllCollisions();
+        // ì¶©ëŒ í•´ê²° (í”ë“¤ë¦¼ ì—†ì´ ì •ì§í•˜ê²Œ ê³„ì‚°í•˜ë¯€ë¡œ ë²„ê·¸ ì—†ìŒ)
+        ResolveAllCollisions(dt);
+
+        // â”€â”€ â˜… ì˜¤ì§ Render ì»´í¬ë„ŒíŠ¸ê°€ ì°¸ê³ í•  í”ë“¤ë¦¼ ìˆ˜ì¹˜ë§Œ ê³„ì‚° â”€â”€
+        if (OnGround && JumpCharge > 0.05f)
+        {
+            float shakeIntensity = (JumpCharge * JumpCharge) * 0.25f;
+            float timeFactor = sinf(dt * 1000.0f + JumpCharge * 50.0f);
+            CurrentShakeX = (timeFactor > 0.0f ? 1.0f : -1.0f) * shakeIntensity;
+        }
+        else
+        {
+            CurrentShakeX = 0.0f;
+        }
+
+        // ê³µì¤‘ì—ì„œ ìºë¦­í„°ê°€ íšŒì „í•˜ëŠ” ë¬¼ë¦¬ ì—°ì¶œ
+        if (!OnGround)
+        {
+            Owner->Rot -= Vel.x * 3.0f * dt;
+        }
+        else
+        {
+            Owner->Rot += (0.0f - Owner->Rot) * 15.0f * dt;
+        }
     }
 
 private:
-    // ¦¡¦¡ ¼öÆò ÀÌµ¿
-    //
-    //  [1´Ü°è] Á¡ÇÁ ÃæÀü ÁßÀÌ¸é Å¸ÀÔ¿¡ »ó°ü¾øÀÌ ÀÌµ¿ Â÷´Ü
-    //          ¡æ »õ Å¸ÀÔÀ» Ãß°¡ÇØµµ ¿©±â´Â °Çµå¸± ÇÊ¿ä ¾øÀ½
-    //
-    //  [2´Ü°è] ÃæÀü ÁßÀÌ ¾Æ´Ò ¶§ Å¸ÀÔº° ÀÌµ¿ µ¿ÀÛ
-    //          ¡æ »õ Å¸ÀÔ Ãß°¡ ½Ã else if ºí·Ï¸¸ Ãß°¡
-    // ¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡
+    // â”€â”€ ìˆ˜í‰ ì´ë™ (ìºë¦­í„°ê°€ ì í”„ ì‹œ ê³µì¤‘ì—ì„œë„ ì¢Œìš° ì´ë™ ê°€ëŠ¥í•˜ê²Œ êµ¬í˜„) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     void UpdateMovement(float dt)
     {
-        // ¦¡¦¡ 1´Ü°è: ÃæÀü Áß ÀÌµ¿ Â÷´Ü (¸ðµç Å¸ÀÔ °øÅë) ¦¡¦¡
-        if (SpaceHeld && OnGround)
+        // ì§€ë©´ì—ì„œ ì í”„ ì¶©ì „ ì¤‘ì¼ ë•ŒëŠ” ì¢Œìš° ì´ë™ì„ ì™„ë²½ ì°¨ë‹¨í•˜ê³  ë¸Œë ˆì´í¬
+        if (SpaceHeld && OnGround && !IsStunned)
+        {
+            if (OnIce) Vel.x *= (1.0f - ICE_DRAG * dt);
+            else       Vel.x += (0.0f - Vel.x) * BRAKE_ACCEL * dt;
+            return;
+        }
+
+        if (OnGround)
         {
             if (OnIce)
-                Vel.x *= (1.0f - ICE_DRAG * dt);   // ¾óÀ½Àº ¹Ì²ô·¯Áö¸ç °¨¼Ó
+            {
+                if (MoveInput != 0.0f && !IsStunned)
+                {
+                    Vel.x += MoveInput * ICE_ACCEL * dt;
+                    Vel.x = max(-MOVE_SPEED, min(MOVE_SPEED, Vel.x));
+                }
+                else Vel.x *= (1.0f - ICE_DRAG * dt);
+            }
             else
-                Vel.x += (0.0f - Vel.x) * BRAKE_ACCEL * dt; // ÀÏ¹ÝÀº ºê·¹ÀÌÅ©
-            return;
+            {
+                if (MoveInput != 0.0f && !IsStunned)
+                {
+                    Vel.x += MoveInput * GROUND_ACCEL * dt;
+                    Vel.x = max(-MOVE_SPEED, min(MOVE_SPEED, Vel.x));
+                }
+                else
+                {
+                    float decel = GROUND_DECEL * dt;
+                    if (Vel.x > 0) Vel.x = max(0.0f, Vel.x - decel);
+                    else           Vel.x = min(0.0f, Vel.x + decel);
+                }
+            }
         }
-
-        // ¦¡¦¡ 2´Ü°è: Å¸ÀÔº° ÀÌµ¿ ¦¡¦¡
-        // ¡Ú »õ Å¸ÀÔ Ãß°¡ ½Ã else if ºí·ÏÀ» ¿©±â¿¡ Ãß°¡ÇÏ¼¼¿ä.
-        if (OnIce)
+        else
         {
+            // ê³µì¤‘ ìƒíƒœ ì¡°ìž‘ì´ ê°€ëŠ¥í•˜ë„ë¡ airAccel/airDecel ê¸°ë°˜ìœ¼ë¡œ ì†ë„ ë³´ì •
+            if (IsStunned) return;
+
+            float airAccel = 12.0f;
+            float airDecel = 2.0f;
+
             if (MoveInput != 0.0f)
             {
-                Vel.x += MoveInput * ICE_ACCEL * dt;
+                Vel.x += MoveInput * airAccel * dt;
                 Vel.x = max(-MOVE_SPEED, min(MOVE_SPEED, Vel.x));
             }
             else
             {
-                Vel.x *= (1.0f - ICE_DRAG * dt);
-            }
-        }
-        else if (OnGround)
-        {
-            // º¯°æ Àü: Vel.x = MoveInput * MOVE_SPEED;  (Áï°¢ ¹ÝÀÀ)
-
-            // º¯°æ ÈÄ: °¡¼Ó/°¨¼Ó
-            if (MoveInput != 0.0f)
-            {
-                Vel.x += MoveInput * GROUND_ACCEL * dt;
-                Vel.x = max(-MOVE_SPEED, min(MOVE_SPEED, Vel.x));
-            }
-            else
-            {
-                // ÀÔ·Â ¾øÀ¸¸é °¨¼Ó
-                float decel = GROUND_DECEL * dt;
-                if (Vel.x > 0) Vel.x = max(0.0f, Vel.x - decel);
-                else           Vel.x = min(0.0f, Vel.x + decel);
+                if (Vel.x > 0) Vel.x = max(0.0f, Vel.x - airDecel * dt);
+                else           Vel.x = min(0.0f, Vel.x + airDecel * dt);
             }
         }
     }
 
-    // ¦¡¦¡ Á¡ÇÁ ÃæÀü & ¹ß»ç ¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡
+    // â”€â”€ ì í”„ (ì½”ìš”í…Œ íƒ€ìž„ & ë²„í¼ë§ ì ìš©) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     void UpdateJump(float dt)
     {
-        if (!OnGround)
+        // 1. ì½”ìš”í…Œ íƒ€ìž„ ì—…ë°ì´íŠ¸ (ë°œì´ í—ˆê³µì— ë– ë„ 0.1ì´ˆê°„ ì í”„ ê°€ëŠ¥)
+        if (OnGround) CoyoteTimer = 0.1f;
+        else if (CoyoteTimer > 0.0f) CoyoteTimer -= dt;
+
+        // 2. ì í”„ ë²„í¼ë§ ì—…ë°ì´íŠ¸ (ì°©ì§€ ì§ì „ 0.15ì´ˆ ë‚´ì˜ ìŠ¤íŽ˜ì´ìŠ¤ë°” ìž…ë ¥ì„ ì €ìž¥)
+        if (SpacePressedThisFrame) JumpBufferTimer = 0.15f;
+        else if (JumpBufferTimer > 0.0f) JumpBufferTimer -= dt;
+
+        // ì½”ìš”í…Œ íƒ€ìž„ ìœ ì˜ˆ ê¸°ê°„ì´ ë‚¨ì•„ìžˆë‹¤ë©´ ê³µì¤‘ì´ë¼ë„ ì í”„ ê°€ëŠ¥ ìƒíƒœë¡œ ì·¨ê¸‰
+        bool canJump = (OnGround || CoyoteTimer > 0.0f) && !IsStunned;
+
+        if (canJump)
         {
-            // ÂøÁö Àü±îÁö JumpedThisPress À¯Áö (°øÁß ÀçÁ¡ÇÁ ¹æÁö)
+            // ì¶©ì „ ì‹œìž‘ (ëˆŒëŸ¬ì„œ ì¶©ì „í•˜ê±°ë‚˜, ê³µì¤‘ ë²„í¼ë§ íƒ€ì´ë¨¸ê°€ ì‚´ì•„ìžˆì„ ë•Œ)
+            if ((SpaceHeld || JumpBufferTimer > 0.0f) && !JumpedThisPress)
+            {
+                JumpCharge = min(JumpCharge + JUMP_CHARGE * dt, 1.0f);
+            }
+
+            // ë°œì‚¬ (ìŠ¤íŽ˜ì´ìŠ¤ë°”ë¥¼ ë–¼ëŠ” ìˆœê°„ ì¶©ì „ëœ ì–‘ë§Œí¼ íŠ€ì–´ì˜¤ë¦„)
+            if (!SpaceHeld && JumpCharge > 0.0f)
+            {
+                float speed = JUMP_MIN + (JUMP_MAX - JUMP_MIN) * JumpCharge;
+                Vel.y = speed;
+
+                // [ê³µì¤‘ ì œì–´ ëŒ€ì‘] ì í”„ ìˆœê°„ ê¸°ì¡´ ë‹¬ë¦¬ê¸° ê´€ì„±ì„ ì§€ìš°ê³  ìž…ë ¥ ë°©í–¥ìœ¼ë¡œ ë°œì‚¬
+                Vel.x = MoveInput * MOVE_SPEED;
+
+                JumpCharge = 0.0f;
+                JumpedThisPress = true;
+                OnGround = false;
+
+                CoyoteTimer = 0.0f;      // ì í”„ë¥¼ ëœ„ìœ¼ë¯€ë¡œ ìœ ì˜ˆ ì‹œê°„ ì†Œëª¨
+                JumpBufferTimer = 0.0f;  // ì˜ˆì•½ëœ ì í”„ ì²˜ë¦¬ ì™„ë£Œ
+            }
+        }
+        else
+        {
             if (!SpaceHeld) JumpedThisPress = false;
-            return;
         }
-
-        if (SpaceHeld && !JumpedThisPress)
-        {
-            JumpCharge = min(JumpCharge + JUMP_CHARGE * dt, 1.0f);
-        }
-        else if (!SpaceHeld && JumpCharge > 0.0f)
-        {
-            float speed = JUMP_MIN + (JUMP_MAX - JUMP_MIN) * JumpCharge;
-            Vel.y = speed;
-            Vel.x = MoveInput * MOVE_SPEED; // °ü¼º ¾øÀÌ µ¤¾î¾¸
-            JumpCharge = 0.0f;
-            JumpedThisPress = true;
-            OnGround = false;
-        }
-
-        if (!SpaceHeld && OnGround) JumpedThisPress = false;
     }
 
-    // ¦¡¦¡ Ãæµ¹ ÇØ°á ¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡
-    void ResolveAllCollisions()
+    // â”€â”€ ì¶©ëŒ í•´ê²° (ì í”„í‚¹ ìŠ¤íƒ€ì¼ í•€ë³¼ ì—°ì‡„ ë°˜ì‚¬) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    void ResolveAllCollisions(float dt)
     {
         OnGround = false;
         OnIce = false;
@@ -833,25 +904,28 @@ private:
         for (auto* go : *Platforms)
         {
             auto* plat = go->GetComponent<PlatformComp>();
-            if (plat) ResolveCollision(plat);
+            if (plat) ResolveCollision(plat, dt);
         }
     }
 
-    void ResolveCollision(PlatformComp* plat)
+    void ResolveCollision(PlatformComp* plat, float dt)
     {
         AABB player = GetAABB();
         AABB platform = plat->GetAABB();
         if (!player.Overlaps(platform)) return;
 
-        float oL = player.right - platform.left;
-        float oR = platform.right - player.left;
-        float oB = player.top - platform.bottom;
-        float oT = platform.top - player.bottom;
-
+        // íˆ¬ê³¼ í”Œëž«í¼(PassThrough) íŠ¹ìˆ˜ ì˜ˆì™¸ ì²˜ë¦¬
         if (plat->Type == PlatformType::PassThrough)
         {
-            float prevBottom = Owner->Pos.y - HalfH - Vel.y * 0.016f;
-            if (prevBottom >= platform.top - 0.01f && Vel.y <= 0.0f)
+            float penetrationY = platform.top - player.bottom;
+
+            // Xì¶• ê°€ìž¥ìžë¦¬ ë‚Œ (ë¬´í•œ ë¡œë”© ë ‰) ë°©ì§€ë¥¼ ìœ„í•œ ê°€ë¡œ ë§ˆì§„ ê²€ì‚¬
+            float marginX = HalfW * 0.5f;
+            bool isWithinX = (player.right - marginX > platform.left) &&
+                (player.left + marginX < platform.right);
+
+            // ì•ˆì „ ë²”ìœ„ ì•ˆì´ê³  ë–¨ì–´ì§€ëŠ” ì¤‘ì¼ ë•Œë§Œ ë°œíŒ ì•ˆì°©
+            if (isWithinX && Vel.y <= 0.0f && penetrationY > 0.0f && penetrationY <= max(0.2f, -Vel.y * dt * 2.0f))
             {
                 Owner->Pos.y = platform.top + HalfH;
                 Vel.y = 0;
@@ -860,11 +934,64 @@ private:
             return;
         }
 
+        // ì¼ë°˜ ë° ì–¼ìŒ ë°œíŒ ì¶©ëŒ í•´ê²° (ì—°ì‡„ íŠ•ê¹€ ê·¹ëŒ€í™” ë²„ì „)
+        float oL = player.right - platform.left;
+        float oR = platform.right - player.left;
+        float oB = player.top - platform.bottom;
+        float oT = platform.top - player.bottom;
+
         float minO = min(min(oL, oR), min(oB, oT));
-        if (minO == oT) { Owner->Pos.y = platform.top + HalfH; if (Vel.y < 0) Vel.y = 0; OnGround = true; if (plat->Type == PlatformType::Ice) OnIce = true; }
-        else if (minO == oB) { Owner->Pos.y = platform.bottom - HalfH; if (Vel.y > 0) Vel.y = 0; }
-        else if (minO == oL) { Owner->Pos.x = platform.left - HalfW; Vel.x = 0; }
-        else { Owner->Pos.x = platform.right + HalfW; Vel.x = 0; }
+
+        // ì í”„í‚¹ì˜ í•˜ë“œì½”ì–´í•œ ì—°ì‡„ íŠ•ê¹€ì„ êµ¬í˜„í•˜ê¸° ìœ„í•œ íƒ„ì„± ìˆ˜ì¹˜
+        const float HORIZONTAL_BOUNCE = 1.3f; // ë²½ì— ë°•ìœ¼ë©´ ë°•ì€ ì†ë„ë³´ë‹¤ 1.3ë°° ë” ê°•í•˜ê²Œ ë°˜ì‚¬(ë„í•‘)í•˜ì—¬ í•€ë³¼ íš¨ê³¼ ê·¹ëŒ€í™”
+
+        // ê³µì¤‘ì—ì„œ ì†ë„ê°€ ë¶™ì€ ì±„ë¡œ ë²½ ì˜†êµ¬ë¦¬ì— ìŠ¤ì¹˜ë©´ ë¬´ì¡°ê±´ ë²½ ë°˜ì‚¬ íŒì •ì„ ìˆ˜ì§ íŒì •ë³´ë‹¤ ìš°ì„ í•¨
+        bool hitSideWall = (minO == oL || minO == oR) || (abs(Vel.x) > 1.0f && minO != oT);
+
+        if (hitSideWall && !OnGround)
+        {
+            if (oL < oR) // ì™¼ìª½ ë²½ ì˜†êµ¬ë¦¬ ë°•ìŒ (ì˜¤ë¥¸ìª½ ì´ë™ ì¤‘)
+            {
+                Owner->Pos.x = platform.left - HalfW;
+                if (Vel.x >= 0.0f)
+                {
+                    float speed = max(MinBounceSpeed, Vel.x);
+                    Vel.x = -speed * HORIZONTAL_BOUNCE; // ë°˜ëŒ€íŽ¸ í—ˆê³µìœ¼ë¡œ íŒ íŠ•ê²¨ë‚˜ê°
+                    if (Vel.y > 0.0f) Vel.y *= 0.6f;    // ìƒìŠ¹ë ¥ì´ êº¾ì—¬ ëŒ€ê°ì„  ì•„ëž˜ë¡œ í†µí†µ ë–¨ì–´ì§€ë„ë¡ ìœ ë„
+                }
+            }
+            else // ì˜¤ë¥¸ìª½ ë²½ ì˜†êµ¬ë¦¬ ë°•ìŒ (ì™¼ìª½ ì´ë™ ì¤‘)
+            {
+                Owner->Pos.x = platform.right + HalfW;
+                if (Vel.x <= 0.0f)
+                {
+                    float speed = max(MinBounceSpeed, -Vel.x);
+                    Vel.x = speed * HORIZONTAL_BOUNCE;
+                    if (Vel.y > 0.0f) Vel.y *= 0.6f;
+                }
+            }
+        }
+        else
+        {
+            // ìƒí•˜ ìˆ˜ì§ ì¶©ëŒ í•´ê²°
+            if (minO == oT)
+            {
+                // [ì§€ë©´ ì°©ì§€]
+                if (Vel.y <= 0.0f)
+                {
+                    Owner->Pos.y = platform.top + HalfH;
+                    Vel.y = 0;
+                    OnGround = true;
+                    if (plat->Type == PlatformType::Ice) OnIce = true;
+                }
+            }
+            else if (minO == oB)
+            {
+                // [ì²œìž¥ ë°•ìŒ] ì¿µ í•˜ê³  ì•„ëž˜ë¡œ ì •ì§í•˜ê²Œ ë°”ìš´ìŠ¤ ì²˜ë¦¬ (ì„ ì–¸í•´ë‘ì‹  BounceFactor ë©¤ë²„ í™œìš©)
+                Owner->Pos.y = platform.bottom - HalfH;
+                if (Vel.y > 0.0f) Vel.y = -Vel.y * BounceFactor;
+            }
+        }
     }
 
     void UpdateFly(float dt)
@@ -877,6 +1004,7 @@ private:
         Owner->Pos.x += dir.x * FLY_SPEED * dt;
         Owner->Pos.y += dir.y * FLY_SPEED * dt;
         Vel = { 0, 0 };
+        IsStunned = false;
     }
 
     AABB GetAABB() const
@@ -889,7 +1017,7 @@ private:
 };
 
 // ============================================================
-//  JumpChargeBar  ¦¡  ÃæÀü·® ½Ã°¢È­
+//  JumpChargeBar  â”€  ì¶©ì „ëŸ‰ ì‹œê°í™”
 // ============================================================
 class JumpChargeBar : public Component
 {
@@ -931,6 +1059,7 @@ public:
     ~JumpChargeBar() override { if (CB) CB->Release(); }
 };
 
+
 // ============================================================
 //  GameLoop
 // ============================================================
@@ -947,16 +1076,16 @@ public:
     std::vector<GameObject*> World;
     std::vector<GameObject*> Platforms;
 
-    // ¦¡¦¡ °øÀ¯ GPU ¸®¼Ò½º ¦¡¦¡
+    // â”€â”€ ê³µìœ  GPU ë¦¬ì†ŒìŠ¤ â”€â”€
     ShaderSet      DefaultShaders;
-    Mesh* QuadMesh = nullptr;   // ´ÜÀ§ Äõµå [-0.5, 0.5]
-    Mesh* BarMesh = nullptr;   // ÃæÀü ¹Ù Äõµå [0, 1]
+    Mesh* QuadMesh = nullptr;   // ë‹¨ìœ„ ì¿¼ë“œ [-0.5, 0.5]
+    Mesh* BarMesh = nullptr;   // ì¶©ì „ ë°” ì¿¼ë“œ [0, 1]
 
-    // ¦¡¦¡ ÇÃ·¹ÀÌ¾î Àü¿ë ¸ÓÆ¼¸®¾ó (GameLoop ¼ÒÀ¯) ¦¡¦¡
+    // â”€â”€ í”Œë ˆì´ì–´ ì „ìš© ë¨¸í‹°ë¦¬ì–¼ (GameLoop ì†Œìœ ) â”€â”€
     ColorMaterial* MatPlayer = nullptr;
     ColorMaterial* MatChargeBar = nullptr;
 
-    // ¦¡¦¡ ÇÃ·§Æû ¸ÓÆ¼¸®¾ó ¸ñ·Ï (AddPlatform ¿¡¼­ »ý¼º, ¿©±â¼­ ¼ÒÀ¯) ¦¡¦¡
+    // â”€â”€ í”Œëž«í¼ ë¨¸í‹°ë¦¬ì–¼ ëª©ë¡ (AddPlatform ì—ì„œ ìƒì„±, ì—¬ê¸°ì„œ ì†Œìœ ) â”€â”€
     std::vector<Material*>   OwnedMaterials;
 
     bool MousePressed = false;
@@ -967,7 +1096,7 @@ public:
         for (auto* go : World)     delete go;
         for (auto* go : Platforms) delete go;
         for (auto* m : OwnedMaterials) delete m;
-        // TexCache ¼Ò¸êÀÚ°¡ SRV ÀÚµ¿ ÇØÁ¦
+        // TexCache ì†Œë©¸ìžê°€ SRV ìžë™ í•´ì œ
         CoUninitialize();
         delete MatPlayer;
         delete MatChargeBar;
@@ -977,7 +1106,7 @@ public:
         printf("[Engine] All resources released.\n");
     }
 
-    // ¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     bool Initialize(HINSTANCE hInst,
         LRESULT(CALLBACK* proc)(HWND, UINT, WPARAM, LPARAM))
     {
@@ -988,7 +1117,7 @@ public:
         CoInitialize(nullptr);
         TexCache.Init(&Gfx);
 
-        // ¦¡¦¡ ¼ÎÀÌ´õ ¦¡¦¡
+        // â”€â”€ ì…°ì´ë” â”€â”€
         const char* shaderSrc = R"(
             cbuffer cbWorld    : register(b0) { matrix matWorld; };
             cbuffer cbMaterial : register(b1) { float4 tintColor; int useTexture; float3 pad; };
@@ -1026,14 +1155,14 @@ public:
         };
         DefaultShaders = Gfx.CompileShaders(shaderSrc, ied, 3);
 
-        // ¦¡¦¡ ¸Þ½¬ ¦¡¦¡
+        // â”€â”€ ë©”ì‰¬ â”€â”€
         QuadMesh = new Mesh();
         QuadMesh->CreateQuad(&Gfx, -0.5f, -0.5f, 0.5f, 0.5f);
 
         BarMesh = new Mesh();
         BarMesh->CreateQuad(&Gfx, 0.0f, 0.0f, 1.0f, 1.0f);
 
-        // ¦¡¦¡ ÇÃ·¹ÀÌ¾î ¸ÓÆ¼¸®¾ó ¦¡¦¡
+        // â”€â”€ í”Œë ˆì´ì–´ ë¨¸í‹°ë¦¬ì–¼ â”€â”€
         MatPlayer = new ColorMaterial(DefaultShaders, { 0.3f, 0.6f, 1.0f, 1.0f }, &Gfx);
         MatChargeBar = new ColorMaterial(DefaultShaders, { 1.0f, 0.9f, 0.0f, 1.0f }, &Gfx);
 
@@ -1051,52 +1180,52 @@ public:
         return true;
     }
 
-    // ¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡
-    //  ¸Ê ±¸¼º
-    //  ¡Ú ÇÃ·§Æû Ãß°¡/Á¦°Å´Â ¿©±â¼­¸¸ ÇÏ¸é µË´Ï´Ù.
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    //  ë§µ êµ¬ì„±
+    //  â˜… í”Œëž«í¼ ì¶”ê°€/ì œê±°ëŠ” ì—¬ê¸°ì„œë§Œ í•˜ë©´ ë©ë‹ˆë‹¤.
     //
-    //  ´Ü»ö:    AddPlatform(Å¸ÀÔ, LX, BY, RX, TY);
-    //  ÅØ½ºÃ³:  AddPlatform(Å¸ÀÔ, LX, BY, RX, TY, L"ÆÄÀÏ.png");
-    // ¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡
+    //  ë‹¨ìƒ‰:    AddPlatform(íƒ€ìž…, LX, BY, RX, TY);
+    //  í…ìŠ¤ì²˜:  AddPlatform(íƒ€ìž…, LX, BY, RX, TY, L"íŒŒì¼.png");
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     void BuildMap()
     {
-        // ¦¡¦¡ ¹Ù´Ú ¦¡¦¡
+        // â”€â”€ ë°”ë‹¥ â”€â”€
         AddPlatform(PlatformType::Normal, -5.0f, -3.0f, 5.0f, 0.0f, L"ground2.png");
 
-        // ¦¡¦¡ 1Ãþ ¦¡¦¡
+        // â”€â”€ 1ì¸µ â”€â”€
         AddPlatform(PlatformType::Normal, -3.0f, 1.5f, 0.0f, 1.8f, L"ground1.png");
         AddPlatform(PlatformType::Ice, 1.0f, 1.5f, 3.5f, 1.8f, L"ice1.png");
         AddPlatform(PlatformType::Normal, -1.0f, 3.5f, 2.0f, 3.8f, L"ground1.png");
 
-        // ¦¡¦¡ 2Ãþ ¦¡¦¡
+        // â”€â”€ 2ì¸µ â”€â”€
         AddPlatform(PlatformType::Normal, -4.0f, 5.0f, -1.5f, 5.3f, L"ground1.png");
         AddPlatform(PlatformType::Ice, 0.0f, 5.5f, 3.0f, 5.8f, L"ice1.png");
         AddPlatform(PlatformType::PassThrough, -2.0f, 7.0f, 0.5f, 7.2f, L"passThrough1.png");
         AddPlatform(PlatformType::Normal, 1.5f, 7.0f, 4.0f, 7.3f, L"ground1.png");
 
-        // ¦¡¦¡ 3Ãþ ¦¡¦¡
+        // â”€â”€ 3ì¸µ â”€â”€
         AddPlatform(PlatformType::Normal, -3.5f, 9.0f, -2.0f, 9.2f);
         AddPlatform(PlatformType::Ice, -0.5f, 9.5f, 1.5f, 9.7f, L"ice1.png");
         AddPlatform(PlatformType::Normal, 2.5f, 10.0f, 4.5f, 10.2f, L"ground1.png");
         AddPlatform(PlatformType::PassThrough, -1.0f, 11.5f, 1.5f, 11.7f);
 
-        // ¦¡¦¡ 4Ãþ ¦¡¦¡
+        // â”€â”€ 4ì¸µ â”€â”€
         AddPlatform(PlatformType::Normal, -4.0f, 13.0f, -1.0f, 13.3f);
         AddPlatform(PlatformType::Ice, 0.5f, 13.5f, 3.5f, 13.8f, L"ice1.png");
         AddPlatform(PlatformType::Normal, -2.0f, 15.5f, 2.0f, 15.8f);
 
-        // ¦¡¦¡ ²À´ë±â ¦¡¦¡
+        // â”€â”€ ê¼­ëŒ€ê¸° â”€â”€
         AddPlatform(PlatformType::Normal, -1.5f, 17.5f, 1.5f, 17.8f);
     }
 
-    // ¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡
-    //  ÇÃ·§Æû »ý¼º ÇïÆÛ
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    //  í”Œëž«í¼ ìƒì„± í—¬í¼
     //
-    //  texPath == nullptr ¡æ ´Ü»ö (Å¸ÀÔº° ±âº» »ö»ó)
-    //  texPath ÁöÁ¤ ½Ã    ¡æ ÇØ´ç ÅØ½ºÃ³ ·Îµå (Áßº¹ ·Îµå ¹æÁö)
+    //  texPath == nullptr â†’ ë‹¨ìƒ‰ (íƒ€ìž…ë³„ ê¸°ë³¸ ìƒ‰ìƒ)
+    //  texPath ì§€ì • ì‹œ    â†’ í•´ë‹¹ í…ìŠ¤ì²˜ ë¡œë“œ (ì¤‘ë³µ ë¡œë“œ ë°©ì§€)
     //
-    //  ¡Ú »õ PlatformType Ãß°¡ ½Ã switch ¿¡ case ¸¸ Ãß°¡ÇÏ¸é µË´Ï´Ù.
-    // ¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡
+    //  â˜… ìƒˆ PlatformType ì¶”ê°€ ì‹œ switch ì— case ë§Œ ì¶”ê°€í•˜ë©´ ë©ë‹ˆë‹¤.
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     void AddPlatform(PlatformType type,
         float lx, float by, float rx, float ty,
         const wchar_t* texPath = nullptr)
@@ -1106,8 +1235,8 @@ public:
         float cx = (lx + rx) * 0.5f;
         float cy = (by + ty) * 0.5f;
 
-        // ¦¡¦¡ Å¸ÀÔº° ±âº» »ö»ó
-        // ¡Ú »õ Å¸ÀÔ Ãß°¡ ½Ã case Ãß°¡
+        // â”€â”€ íƒ€ìž…ë³„ ê¸°ë³¸ ìƒ‰ìƒ
+        // â˜… ìƒˆ íƒ€ìž… ì¶”ê°€ ì‹œ case ì¶”ê°€
         XMFLOAT4 color = { 1, 1, 1, 1 };
         switch (type)
         {
@@ -1116,15 +1245,15 @@ public:
         case PlatformType::PassThrough: color = { 0.4f, 0.8f, 0.4f, 1.0f }; break;
         }
 
-        // ¦¡¦¡ ¸ÓÆ¼¸®¾ó »ý¼º (ÇÃ·§Æû¸¶´Ù µ¶¸³)
+        // â”€â”€ ë¨¸í‹°ë¦¬ì–¼ ìƒì„± (í”Œëž«í¼ë§ˆë‹¤ ë…ë¦½)
         auto* mat = new ColorMaterial(DefaultShaders, color, &Gfx);
-        OwnedMaterials.push_back(mat); // GameLoop °¡ ¼ÒÀ¯±Ç °ü¸®
+        OwnedMaterials.push_back(mat); // GameLoop ê°€ ì†Œìœ ê¶Œ ê´€ë¦¬
 
-        // ¦¡¦¡ ÅØ½ºÃ³ (¾øÀ¸¸é ´Ü»ö ±×´ë·Î)
+        // â”€â”€ í…ìŠ¤ì²˜ (ì—†ìœ¼ë©´ ë‹¨ìƒ‰ ê·¸ëŒ€ë¡œ)
         auto* srv = TexCache.Get(texPath);
         if (srv) mat->SetTexture(srv);
 
-        // ¦¡¦¡ GameObject Á¶¸³
+        // â”€â”€ GameObject ì¡°ë¦½
         auto* go = new GameObject(cx, cy);
         go->Scale = { w, h };
         go->AddComponent(new MeshRenderer(QuadMesh, mat));
@@ -1133,7 +1262,7 @@ public:
         Platforms.push_back(go);
     }
 
-    // ¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     void BuildPlayer()
     {
         auto* player = new GameObject(0.0f, 1.5f);
@@ -1142,7 +1271,7 @@ public:
         player->AddComponent(new MeshRenderer(QuadMesh, MatPlayer));
 
         auto* pc = new PlayerController();
-        pc->Platforms = &Platforms;   // Àü¿ª ´ë½Å Á÷Á¢ ÁÖÀÔ
+        pc->Platforms = &Platforms;   // ì „ì—­ ëŒ€ì‹  ì§ì ‘ ì£¼ìž…
         pc->Checkpoint = { 0.0f, 1.5f };
         player->AddComponent(pc);
 
@@ -1151,7 +1280,7 @@ public:
         World.push_back(player);
     }
 
-    // ¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     void Run()
     {
         MSG msg = {};
