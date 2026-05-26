@@ -115,7 +115,14 @@ struct AABB
 //     2. AddPlatform() switch 에 기본색 추가
 //     3. UpdateMovement() 2단계 분기에 이동 동작 추가
 // ============================================================
-enum class PlatformType { Normal, Ice, PassThrough };
+enum class PlatformType { 
+  Normal, 
+  Ice, 
+  PassThrough,
+  Vanishing,
+  Reverse,
+  Moving
+};
 
 // ============================================================
 //  ShaderSet
@@ -502,6 +509,7 @@ public:
     float Rot = 0.0f;
     Vec2  Scale = { 1, 1 };
     bool  Active = true;
+    bool Visible = true; //Vanishing용
 
     std::vector<Component*> Components;
 
@@ -534,7 +542,7 @@ public:
     }
     void Render(GraphicsContext* gfx)
     {
-        if (!Active) return;
+        if (!Active || !Visible) return;
         for (auto* c : Components) c->Render(gfx);
     }
 };
@@ -563,6 +571,7 @@ public:
     void Render(GraphicsContext* gfx) override
     {
         if (!pMesh || !pMat || !CB) return;
+
         pMat->Bind(gfx);
 
         XMMATRIX world =
@@ -637,8 +646,83 @@ class PlatformComp : public Component
 {
 public:
     PlatformType Type;
+    
+    // Moving 플랫폼 시작 위치 저장
+    Vec2 StartPos = { 0, 0 };
+
+    // 이동 시간 누적
+    float MoveTimer = 0.0f;
+
+    // 이동 범위
+    float MoveRange = 0.6f;
+
+    // 이동 속도
+    float MoveSpeed = 1.5f;
+
+    // 플랫폼 활성 상태
+    bool IsActive = true;
+
+    // Vanishing 전용 타이머
+    float Timer = 0.0f;
+
+    // 플레이어가 한번 밟았는지
+    bool Triggered = false;
 
     PlatformComp(PlatformType t) : Type(t) {}
+
+    // Moving platform용
+    void Start(GraphicsContext* gfx) override
+    {
+      // 시작 위치 저장
+      StartPos = Owner->Pos;
+    }
+
+    void Update(float dt) override
+    {
+      // ─────────────────────────────
+      // Vanishing 플랫폼
+      // ─────────────────────────────
+      if (Type == PlatformType::Vanishing)
+      {
+        // 한번 밟힌 이후 타이머 진행
+        if (Triggered)
+        {
+          Timer += dt;
+
+          // 3초 후 사라짐
+          if (Timer >= 3.0f && IsActive)
+          {
+            IsActive = false;
+
+            // 화면에서도 숨김
+            Owner->Visible = false;
+          }
+
+          // 5초 후 다시 생성
+          if (Timer >= 5.0f)
+          {
+            IsActive = true;
+            Owner->Visible = true;
+
+            Triggered = false;
+            Timer = 0.0f;
+          }
+        }
+      }
+
+      // ─────────────────────────────
+      // Moving 플랫폼
+      // ─────────────────────────────
+      if (Type == PlatformType::Moving)
+      {
+        // 시간 증가
+        MoveTimer += dt * MoveSpeed;
+
+        // sin 기반 좌우 왕복 이동
+        Owner->Pos.x =
+          StartPos.x + sinf(MoveTimer) * MoveRange;
+      }
+    }
 
     AABB GetAABB() const
     {
@@ -703,6 +787,8 @@ public:
 
     // ── 지면 타입 플래그 ──
     bool  OnIce = false;
+    float ReverseTimer = 0.0f;
+    bool IsReverse() const { return ReverseTimer > 0.0f; }
 
     // ── 튕김(Bounce) 설정 ──
     float BounceFactor = 0.85f;   // 튕길 때 보존되는 속도 비율 
@@ -756,6 +842,12 @@ public:
         if (FlyMode) { UpdateFly(dt); return; }
 
         Vel.y += GRAVITY * dt;
+
+        // Reverse 효과 시간 감소
+        if (ReverseTimer > 0.0f)
+        {
+          ReverseTimer -= dt;
+        }
 
         UpdateMovement(dt);
         UpdateJump(dt);
@@ -813,6 +905,27 @@ private:
                 }
                 else Vel.x *= (1.0f - ICE_DRAG * dt);
             }
+            else if (IsReverse())
+            {
+              // 입력 반전
+              float reverseInput = IsReverse() ? -MoveInput : MoveInput;
+
+              if (reverseInput != 0.0f && !IsStunned)
+              {
+                Vel.x += reverseInput * GROUND_ACCEL * dt;
+
+                Vel.x = max(-MOVE_SPEED, min(MOVE_SPEED, Vel.x));
+              }
+              else
+              {
+                float decel = GROUND_DECEL * dt;
+
+                if (Vel.x > 0)
+                  Vel.x = max(0.0f, Vel.x - decel);
+                else
+                  Vel.x = min(0.0f, Vel.x + decel);
+              }
+            }
             else
             {
                 if (MoveInput != 0.0f && !IsStunned)
@@ -830,22 +943,30 @@ private:
         }
         else
         {
-            // 공중 상태 조작이 가능하도록 airAccel/airDecel 기반으로 속도 보정
-            if (IsStunned) return;
+          // 공중 상태 조작 가능
+          if (IsStunned)
+            return;
 
-            float airAccel = 12.0f;
-            float airDecel = 2.0f;
+          float airAccel = 12.0f;
+          float airDecel = 2.0f;
 
-            if (MoveInput != 0.0f)
-            {
-                Vel.x += MoveInput * airAccel * dt;
-                Vel.x = max(-MOVE_SPEED, min(MOVE_SPEED, Vel.x));
-            }
+          // Reverse 상태면 공중 이동도 반전
+          float input =
+            IsReverse() ? -MoveInput : MoveInput;
+
+          if (input != 0.0f)
+          {
+            Vel.x += input * airAccel * dt;
+
+            Vel.x = max(-MOVE_SPEED, min(MOVE_SPEED, Vel.x));
+          }
+          else
+          {
+            if (Vel.x > 0)
+              Vel.x = max(0.0f, Vel.x - airDecel * dt);
             else
-            {
-                if (Vel.x > 0) Vel.x = max(0.0f, Vel.x - airDecel * dt);
-                else           Vel.x = min(0.0f, Vel.x + airDecel * dt);
-            }
+              Vel.x = min(0.0f, Vel.x + airDecel * dt);
+          }
         }
     }
 
@@ -880,6 +1001,11 @@ private:
                 // [공중 제어 대응] 점프 순간 기존 달리기 관성을 지우고 입력 방향으로 발사
                 Vel.x = MoveInput * MOVE_SPEED;
 
+                // Reverse 플랫폼이면 점프 방향도 반전
+                float jumpInput = IsReverse() ? -MoveInput : MoveInput;
+
+                Vel.x = jumpInput * MOVE_SPEED;
+
                 JumpCharge = 0.0f;
                 JumpedThisPress = true;
                 OnGround = false;
@@ -899,7 +1025,7 @@ private:
     {
         OnGround = false;
         OnIce = false;
-
+        
         if (!Platforms) return;
         for (auto* go : *Platforms)
         {
@@ -912,6 +1038,10 @@ private:
     {
         AABB player = GetAABB();
         AABB platform = plat->GetAABB();
+
+        // 비활성 플랫폼은 충돌 무시
+        if (!plat->IsActive) return;
+
         if (!player.Overlaps(platform)) return;
 
         // 투과 플랫폼(PassThrough) 특수 예외 처리
@@ -930,6 +1060,9 @@ private:
                 Owner->Pos.y = platform.top + HalfH;
                 Vel.y = 0;
                 OnGround = true;
+
+                // PassThrough 착지 시 Reverse 해제
+                ReverseTimer = 0.0f;
             }
             return;
         }
@@ -983,6 +1116,23 @@ private:
                     Vel.y = 0;
                     OnGround = true;
                     if (plat->Type == PlatformType::Ice) OnIce = true;
+                    
+                    // Reverse 플랫폼 밟으면 2초간 반전
+                    if (plat->Type == PlatformType::Reverse)
+                    {
+                      ReverseTimer = 2.0f;
+                    }
+                    else
+                    {
+                      // 다른 플랫폼 밟으면 Reverse 해제
+                      ReverseTimer = 0.0f;
+                    }
+
+                    // Vanishing 플랫폼이면 타이머 시작
+                    if (plat->Type == PlatformType::Vanishing)
+                    {
+                      plat->Triggered = true;
+                    }
                 }
             }
             else if (minO == oB)
@@ -1243,6 +1393,9 @@ public:
         case PlatformType::Normal:      color = { 0.5f, 0.4f, 0.3f, 1.0f }; break;
         case PlatformType::Ice:         color = { 0.6f, 0.9f, 1.0f, 1.0f }; break;
         case PlatformType::PassThrough: color = { 0.4f, 0.8f, 0.4f, 1.0f }; break;
+        case PlatformType::Vanishing:   color = { 1.0f, 0.3f, 0.3f, 1.0f }; break;
+        case PlatformType::Reverse:     color = { 0.8f, 0.3f, 1.0f, 1.0f }; break;
+        case PlatformType::Moving:      color = { 1.0f, 0.8f, 0.2f, 1.0f }; break;
         }
 
         // ── 머티리얼 생성 (플랫폼마다 독립)
