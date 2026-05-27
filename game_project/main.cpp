@@ -1,4 +1,4 @@
-﻿/// ============================================================
+/// ============================================================
 //  JumpKing-Style Platformer  |  DirectX 11  |  Single File
 //
 //  ★ 확장 가이드 ★
@@ -679,15 +679,28 @@ class PlatformComp : public Component
 {
 public:
     PlatformType Type;
+    
+    // Moving 플랫폼 시작 위치 저장
+    Vec2 StartPos = { 0, 0 };
 
-    Vec2  StartPos = { 0, 0 };
+    // 이동 시간 누적
     float MoveTimer = 0.0f;
+
+    // 이동 범위
     float MoveRange = 0.6f;
+
+    // 이동 속도
     float MoveSpeed = 1.5f;
 
-    bool  IsActive = true;
+    // 플랫폼 활성 상태
+    bool IsActive = true;
+
+    // Vanishing 전용 타이머
     float Timer = 0.0f;
-    bool  Triggered = false;
+
+    // 플레이어가 한번 밟았는지
+    bool Triggered = false;
+
 
     PlatformComp(PlatformType t) : Type(t) {}
 
@@ -839,6 +852,17 @@ struct RouletteState
 // ============================================================
 //  PlayerController
 // ============================================================
+
+/*
+추가된 로직
+1. 점프 시 지면 모서리에 부딪히는 경우 튕겨져 나오는 로직
+2. 캐릭터 점프 시 캐릭터가 회전 후 바닥에 착지 시 회전률 초기화로 정상적이게 보이게끔 설정
+3. 코요테 타임 추가 -> 캐릭터가 허공에 떠도 0.1초 간 점프를 허용하여 억울하게 추락하는 것을 방지
+4. 공중에서 캐릭터의 위치 제어 기능 (물리 엔진)
+5. 점프 버퍼 -> 착지 직전 0.15초 내에 입력된 점프 명령을 입력하고 착지 즉시 점프가 가능하게끔 구현 
+    << 이 부분은 차징 점프여서 굳이 없어도 되지 않을까 싶습니다!
+*/
+
 class PlayerController : public Component
 {
 public:
@@ -983,6 +1007,7 @@ public:
         UpdateMovement(dt);
         UpdateJump(dt);
 
+        // 순수 물리 이동만 적용
         Owner->Pos.x += Vel.x * dt;
         Owner->Pos.y += Vel.y * dt;
 
@@ -1122,7 +1147,7 @@ private:
     {
         OnGround = false;
         OnIce = false;
-
+        
         if (!Platforms) return;
         for (auto* go : *Platforms)
         {
@@ -1398,6 +1423,7 @@ public:
 
     ~JumpChargeBar() override { if (CB) CB->Release(); }
 };
+
 
 // ============================================================
 //  ActiveItemBar  ─  발동 중 아이템 잔여시간 바 (플레이어 위)
