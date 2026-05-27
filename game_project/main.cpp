@@ -115,7 +115,14 @@ struct AABB
 //     2. AddPlatform() switch 에 기본색 추가
 //     3. UpdateMovement() 2단계 분기에 이동 동작 추가
 // ============================================================
-enum class PlatformType { Normal, Ice, PassThrough };
+enum class PlatformType { 
+  Normal, 
+  Ice, 
+  PassThrough,
+  Vanishing,
+  Reverse,
+  Moving
+};
 
 // ============================================================
 //  ShaderSet
@@ -502,6 +509,7 @@ public:
     float Rot = 0.0f;
     Vec2  Scale = { 1, 1 };
     bool  Active = true;
+    bool Visible = true; //Vanishing용
 
     std::vector<Component*> Components;
 
@@ -534,7 +542,7 @@ public:
     }
     void Render(GraphicsContext* gfx)
     {
-        if (!Active) return;
+        if (!Active || !Visible) return;
         for (auto* c : Components) c->Render(gfx);
     }
 };
@@ -563,6 +571,7 @@ public:
     void Render(GraphicsContext* gfx) override
     {
         if (!pMesh || !pMat || !CB) return;
+
         pMat->Bind(gfx);
 
         XMMATRIX world =
@@ -670,8 +679,83 @@ class PlatformComp : public Component
 {
 public:
     PlatformType Type;
+    
+    // Moving 플랫폼 시작 위치 저장
+    Vec2 StartPos = { 0, 0 };
+
+    // 이동 시간 누적
+    float MoveTimer = 0.0f;
+
+    // 이동 범위
+    float MoveRange = 0.6f;
+
+    // 이동 속도
+    float MoveSpeed = 1.5f;
+
+    // 플랫폼 활성 상태
+    bool IsActive = true;
+
+    // Vanishing 전용 타이머
+    float Timer = 0.0f;
+
+    // 플레이어가 한번 밟았는지
+    bool Triggered = false;
 
     PlatformComp(PlatformType t) : Type(t) {}
+
+    // Moving platform용
+    void Start(GraphicsContext* gfx) override
+    {
+      // 시작 위치 저장
+      StartPos = Owner->Pos;
+    }
+
+    void Update(float dt) override
+    {
+      // ─────────────────────────────
+      // Vanishing 플랫폼
+      // ─────────────────────────────
+      if (Type == PlatformType::Vanishing)
+      {
+        // 한번 밟힌 이후 타이머 진행
+        if (Triggered)
+        {
+          Timer += dt;
+
+          // 3초 후 사라짐
+          if (Timer >= 3.0f && IsActive)
+          {
+            IsActive = false;
+
+            // 화면에서도 숨김
+            Owner->Visible = false;
+          }
+
+          // 5초 후 다시 생성
+          if (Timer >= 5.0f)
+          {
+            IsActive = true;
+            Owner->Visible = true;
+
+            Triggered = false;
+            Timer = 0.0f;
+          }
+        }
+      }
+
+      // ─────────────────────────────
+      // Moving 플랫폼
+      // ─────────────────────────────
+      if (Type == PlatformType::Moving)
+      {
+        // 시간 증가
+        MoveTimer += dt * MoveSpeed;
+
+        // sin 기반 좌우 왕복 이동
+        Owner->Pos.x =
+          StartPos.x + sinf(MoveTimer) * MoveRange;
+      }
+    }
 
     AABB GetAABB() const
     {
@@ -693,6 +777,17 @@ public:
 //    점프 충전 중 이동 차단은 타입과 무관하게 1단계에서 처리되므로
 //    새 타입을 추가해도 이 동작은 자동으로 적용됩니다.
 // ============================================================
+
+/*
+추가된 로직
+1. 점프 시 지면 모서리에 부딪히는 경우 튕겨져 나오는 로직
+2. 캐릭터 점프 시 캐릭터가 회전 후 바닥에 착지 시 회전률 초기화로 정상적이게 보이게끔 설정
+3. 코요테 타임 추가 -> 캐릭터가 허공에 떠도 0.1초 간 점프를 허용하여 억울하게 추락하는 것을 방지
+4. 공중에서 캐릭터의 위치 제어 기능 (물리 엔진)
+5. 점프 버퍼 -> 착지 직전 0.15초 내에 입력된 점프 명령을 입력하고 착지 즉시 점프가 가능하게끔 구현 
+    << 이 부분은 차징 점프여서 굳이 없어도 되지 않을까 싶습니다!
+*/
+
 class PlayerController : public Component
 {
 public:
@@ -705,16 +800,32 @@ public:
     float HalfW = 0.3f;
     float HalfH = 0.3f;
 
-    // ── 점프 ──
+    // ── 점프 상태 (충전 시스템) ──
+    bool  PrevSpace = false;
+    bool  SpacePressedThisFrame = false;
     bool  SpaceHeld = false;
     float JumpCharge = 0.0f;
     bool  JumpedThisPress = false;
+
+    // ── 고급 조작감 타이머 (플랫포머 필수 기술) ──
+    float CoyoteTimer = 0.0f;        // 코요테 타임 
+    float JumpBufferTimer = 0.0f;    // 점프 버퍼링 
+    float CurrentShakeX = 0.0f;      // 흔들림 연출 누적 방지용 변수
+
+    // ── 점프킹 특화 상태 (조작 불가) ──
+    bool  IsStunned = false;
 
     // ── 입력 ──
     float MoveInput = 0.0f;
 
     // ── 지면 타입 플래그 ──
     bool  OnIce = false;
+    float ReverseTimer = 0.0f;
+    bool IsReverse() const { return ReverseTimer > 0.0f; }
+
+    // ── 튕김(Bounce) 설정 ──
+    float BounceFactor = 0.85f;   // 튕길 때 보존되는 속도 비율 
+    float MinBounceSpeed = 3.0f;  // 살짝 부딪혀도 무조건 튕겨나가는 최소 속도
 
     // ── 개발 도구 ──
     bool  FlyMode = false;
@@ -727,14 +838,14 @@ public:
     void Input() override
     {
         bool spaceNow = (GetAsyncKeyState(VK_SPACE) & 0x8000) != 0;
+        SpacePressedThisFrame = spaceNow && !PrevSpace;
+        SpaceHeld = spaceNow;
+        PrevSpace = spaceNow;
+
         bool fNow = (GetAsyncKeyState('F') & 0x8000) != 0;
         bool rNow = (GetAsyncKeyState('R') & 0x8000) != 0;
         bool cNow = (GetAsyncKeyState('C') & 0x8000) != 0;
 
-        SpaceHeld = spaceNow;
-
-        // 방향 입력은 항상 읽음
-        // (충전 중에는 Update 에서 이동에 반영하지 않고 발사 방향에만 사용)
         MoveInput = 0.0f;
         if (GetAsyncKeyState(VK_LEFT) & 0x8000) MoveInput -= 1.0f;
         if (GetAsyncKeyState(VK_RIGHT) & 0x8000) MoveInput += 1.0f;
@@ -765,139 +876,305 @@ public:
 
         Vel.y += GRAVITY * dt;
 
+        // Reverse 효과 시간 감소
+        if (ReverseTimer > 0.0f)
+        {
+          ReverseTimer -= dt;
+        }
+
         UpdateMovement(dt);
         UpdateJump(dt);
 
+        // 순수 물리 이동만 적용
         Owner->Pos.x += Vel.x * dt;
         Owner->Pos.y += Vel.y * dt;
 
-        ResolveAllCollisions();
+        // 충돌 해결 (흔들림 없이 정직하게 계산하므로 버그 없음)
+        ResolveAllCollisions(dt);
+
+        // ── ★ 오직 Render 컴포넌트가 참고할 흔들림 수치만 계산 ──
+        if (OnGround && JumpCharge > 0.05f)
+        {
+            float shakeIntensity = (JumpCharge * JumpCharge) * 0.25f;
+            float timeFactor = sinf(dt * 1000.0f + JumpCharge * 50.0f);
+            CurrentShakeX = (timeFactor > 0.0f ? 1.0f : -1.0f) * shakeIntensity;
+        }
+        else
+        {
+            CurrentShakeX = 0.0f;
+        }
+
+        // 공중에서 캐릭터가 회전하는 물리 연출
+        if (!OnGround)
+        {
+            Owner->Rot -= Vel.x * 3.0f * dt;
+        }
+        else
+        {
+            Owner->Rot += (0.0f - Owner->Rot) * 15.0f * dt;
+        }
     }
 
 private:
-    // ── 수평 이동
-    //
-    //  [1단계] 점프 충전 중이면 타입에 상관없이 이동 차단
-    //          → 새 타입을 추가해도 여기는 건드릴 필요 없음
-    //
-    //  [2단계] 충전 중이 아닐 때 타입별 이동 동작
-    //          → 새 타입 추가 시 else if 블록만 추가
-    // ──────────────────────────────────────────────────────
+    // ── 수평 이동 (캐릭터가 점프 시 공중에서도 좌우 이동 가능하게 구현) ─────────────────────────
     void UpdateMovement(float dt)
     {
-        // ── 1단계: 충전 중 이동 차단 (모든 타입 공통) ──
-        if (SpaceHeld && OnGround)
+        // 지면에서 점프 충전 중일 때는 좌우 이동을 완벽 차단하고 브레이크
+        if (SpaceHeld && OnGround && !IsStunned)
+        {
+            if (OnIce) Vel.x *= (1.0f - ICE_DRAG * dt);
+            else       Vel.x += (0.0f - Vel.x) * BRAKE_ACCEL * dt;
+            return;
+        }
+
+        if (OnGround)
         {
             if (OnIce)
-                Vel.x *= (1.0f - ICE_DRAG * dt);   // 얼음은 미끄러지며 감속
-            else
-                Vel.x += (0.0f - Vel.x) * BRAKE_ACCEL * dt; // 일반은 브레이크
-            return;
-        }
+            {
+                if (MoveInput != 0.0f && !IsStunned)
+                {
+                    Vel.x += MoveInput * ICE_ACCEL * dt;
+                    Vel.x = max(-MOVE_SPEED, min(MOVE_SPEED, Vel.x));
+                }
+                else Vel.x *= (1.0f - ICE_DRAG * dt);
+            }
+            else if (IsReverse())
+            {
+              // 입력 반전
+              float reverseInput = IsReverse() ? -MoveInput : MoveInput;
 
-        // ── 2단계: 타입별 이동 ──
-        // ★ 새 타입 추가 시 else if 블록을 여기에 추가하세요.
-        if (OnIce)
-        {
-            if (MoveInput != 0.0f)
-            {
-                Vel.x += MoveInput * ICE_ACCEL * dt;
-                Vel.x = max(-MOVE_SPEED, min(MOVE_SPEED, Vel.x));
-            }
-            else
-            {
-                Vel.x *= (1.0f - ICE_DRAG * dt);
-            }
-        }
-        else if (OnGround)
-        {
-            // 변경 전: Vel.x = MoveInput * MOVE_SPEED;  (즉각 반응)
+              if (reverseInput != 0.0f && !IsStunned)
+              {
+                Vel.x += reverseInput * GROUND_ACCEL * dt;
 
-            // 변경 후: 가속/감속
-            if (MoveInput != 0.0f)
-            {
-                Vel.x += MoveInput * GROUND_ACCEL * dt;
                 Vel.x = max(-MOVE_SPEED, min(MOVE_SPEED, Vel.x));
-            }
-            else
-            {
-                // 입력 없으면 감속
+              }
+              else
+              {
                 float decel = GROUND_DECEL * dt;
-                if (Vel.x > 0) Vel.x = max(0.0f, Vel.x - decel);
-                else           Vel.x = min(0.0f, Vel.x + decel);
+
+                if (Vel.x > 0)
+                  Vel.x = max(0.0f, Vel.x - decel);
+                else
+                  Vel.x = min(0.0f, Vel.x + decel);
+              }
             }
+            else
+            {
+                if (MoveInput != 0.0f && !IsStunned)
+                {
+                    Vel.x += MoveInput * GROUND_ACCEL * dt;
+                    Vel.x = max(-MOVE_SPEED, min(MOVE_SPEED, Vel.x));
+                }
+                else
+                {
+                    float decel = GROUND_DECEL * dt;
+                    if (Vel.x > 0) Vel.x = max(0.0f, Vel.x - decel);
+                    else           Vel.x = min(0.0f, Vel.x + decel);
+                }
+            }
+        }
+        else
+        {
+          // 공중 상태 조작 가능
+          if (IsStunned)
+            return;
+
+          float airAccel = 12.0f;
+          float airDecel = 2.0f;
+
+          // Reverse 상태면 공중 이동도 반전
+          float input =
+            IsReverse() ? -MoveInput : MoveInput;
+
+          if (input != 0.0f)
+          {
+            Vel.x += input * airAccel * dt;
+
+            Vel.x = max(-MOVE_SPEED, min(MOVE_SPEED, Vel.x));
+          }
+          else
+          {
+            if (Vel.x > 0)
+              Vel.x = max(0.0f, Vel.x - airDecel * dt);
+            else
+              Vel.x = min(0.0f, Vel.x + airDecel * dt);
+          }
         }
     }
 
-    // ── 점프 충전 & 발사 ──────────────────────────────────
+    // ── 점프 (코요테 타임 & 버퍼링 적용) ────────────────────────
     void UpdateJump(float dt)
     {
-        if (!OnGround)
+        // 1. 코요테 타임 업데이트 (발이 허공에 떠도 0.1초간 점프 가능)
+        if (OnGround) CoyoteTimer = 0.1f;
+        else if (CoyoteTimer > 0.0f) CoyoteTimer -= dt;
+
+        // 2. 점프 버퍼링 업데이트 (착지 직전 0.15초 내의 스페이스바 입력을 저장)
+        if (SpacePressedThisFrame) JumpBufferTimer = 0.15f;
+        else if (JumpBufferTimer > 0.0f) JumpBufferTimer -= dt;
+
+        // 코요테 타임 유예 기간이 남아있다면 공중이라도 점프 가능 상태로 취급
+        bool canJump = (OnGround || CoyoteTimer > 0.0f) && !IsStunned;
+
+        if (canJump)
         {
-            // 착지 전까지 JumpedThisPress 유지 (공중 재점프 방지)
+            // 충전 시작 (눌러서 충전하거나, 공중 버퍼링 타이머가 살아있을 때)
+            if ((SpaceHeld || JumpBufferTimer > 0.0f) && !JumpedThisPress)
+            {
+                JumpCharge = min(JumpCharge + JUMP_CHARGE * dt, 1.0f);
+            }
+
+            // 발사 (스페이스바를 떼는 순간 충전된 양만큼 튀어오름)
+            if (!SpaceHeld && JumpCharge > 0.0f)
+            {
+                float speed = JUMP_MIN + (JUMP_MAX - JUMP_MIN) * JumpCharge;
+                Vel.y = speed;
+
+                // [공중 제어 대응] 점프 순간 기존 달리기 관성을 지우고 입력 방향으로 발사
+                Vel.x = MoveInput * MOVE_SPEED;
+
+                // Reverse 플랫폼이면 점프 방향도 반전
+                float jumpInput = IsReverse() ? -MoveInput : MoveInput;
+
+                Vel.x = jumpInput * MOVE_SPEED;
+
+                JumpCharge = 0.0f;
+                JumpedThisPress = true;
+                OnGround = false;
+
+                CoyoteTimer = 0.0f;      // 점프를 뜄으므로 유예 시간 소모
+                JumpBufferTimer = 0.0f;  // 예약된 점프 처리 완료
+            }
+        }
+        else
+        {
             if (!SpaceHeld) JumpedThisPress = false;
-            return;
         }
-
-        if (SpaceHeld && !JumpedThisPress)
-        {
-            JumpCharge = min(JumpCharge + JUMP_CHARGE * dt, 1.0f);
-        }
-        else if (!SpaceHeld && JumpCharge > 0.0f)
-        {
-            float speed = JUMP_MIN + (JUMP_MAX - JUMP_MIN) * JumpCharge;
-            Vel.y = speed;
-            Vel.x = MoveInput * MOVE_SPEED; // 관성 없이 덮어씀
-            JumpCharge = 0.0f;
-            JumpedThisPress = true;
-            OnGround = false;
-        }
-
-        if (!SpaceHeld && OnGround) JumpedThisPress = false;
     }
 
-    // ── 충돌 해결 ─────────────────────────────────────────
-    void ResolveAllCollisions()
+    // ── 충돌 해결 (점프킹 스타일 핀볼 연쇄 반사) ─────────────────────────
+    void ResolveAllCollisions(float dt)
     {
         OnGround = false;
         OnIce = false;
-
+        
         if (!Platforms) return;
         for (auto* go : *Platforms)
         {
             auto* plat = go->GetComponent<PlatformComp>();
-            if (plat) ResolveCollision(plat);
+            if (plat) ResolveCollision(plat, dt);
         }
     }
 
-    void ResolveCollision(PlatformComp* plat)
+    void ResolveCollision(PlatformComp* plat, float dt)
     {
         AABB player = GetAABB();
         AABB platform = plat->GetAABB();
+
+        // 비활성 플랫폼은 충돌 무시
+        if (!plat->IsActive) return;
+
         if (!player.Overlaps(platform)) return;
 
+        // 투과 플랫폼(PassThrough) 특수 예외 처리
+        if (plat->Type == PlatformType::PassThrough)
+        {
+            float penetrationY = platform.top - player.bottom;
+
+            // X축 가장자리 낌 (무한 로딩 렉) 방지를 위한 가로 마진 검사
+            float marginX = HalfW * 0.5f;
+            bool isWithinX = (player.right - marginX > platform.left) &&
+                (player.left + marginX < platform.right);
+
+            // 안전 범위 안이고 떨어지는 중일 때만 발판 안착
+            if (isWithinX && Vel.y <= 0.0f && penetrationY > 0.0f && penetrationY <= max(0.2f, -Vel.y * dt * 2.0f))
+            {
+                Owner->Pos.y = platform.top + HalfH;
+                Vel.y = 0;
+                OnGround = true;
+
+                // PassThrough 착지 시 Reverse 해제
+                ReverseTimer = 0.0f;
+            }
+            return;
+        }
+
+        // 일반 및 얼음 발판 충돌 해결 (연쇄 튕김 극대화 버전)
         float oL = player.right - platform.left;
         float oR = platform.right - player.left;
         float oB = player.top - platform.bottom;
         float oT = platform.top - player.bottom;
 
-        if (plat->Type == PlatformType::PassThrough)
-        {
-            float prevBottom = Owner->Pos.y - HalfH - Vel.y * 0.016f;
-            if (prevBottom >= platform.top - 0.01f && Vel.y <= 0.0f)
-            {
-                Owner->Pos.y = platform.top + HalfH;
-                Vel.y = 0;
-                OnGround = true;
-            }
-            return;
-        }
-
         float minO = min(min(oL, oR), min(oB, oT));
-        if (minO == oT) { Owner->Pos.y = platform.top + HalfH; if (Vel.y < 0) Vel.y = 0; OnGround = true; if (plat->Type == PlatformType::Ice) OnIce = true; }
-        else if (minO == oB) { Owner->Pos.y = platform.bottom - HalfH; if (Vel.y > 0) Vel.y = 0; }
-        else if (minO == oL) { Owner->Pos.x = platform.left - HalfW; Vel.x = 0; }
-        else { Owner->Pos.x = platform.right + HalfW; Vel.x = 0; }
+
+        // 점프킹의 하드코어한 연쇄 튕김을 구현하기 위한 탄성 수치
+        const float HORIZONTAL_BOUNCE = 1.3f; // 벽에 박으면 박은 속도보다 1.3배 더 강하게 반사(도핑)하여 핀볼 효과 극대화
+
+        // 공중에서 속도가 붙은 채로 벽 옆구리에 스치면 무조건 벽 반사 판정을 수직 판정보다 우선함
+        bool hitSideWall = (minO == oL || minO == oR) || (abs(Vel.x) > 1.0f && minO != oT);
+
+        if (hitSideWall && !OnGround)
+        {
+            if (oL < oR) // 왼쪽 벽 옆구리 박음 (오른쪽 이동 중)
+            {
+                Owner->Pos.x = platform.left - HalfW;
+                if (Vel.x >= 0.0f)
+                {
+                    float speed = max(MinBounceSpeed, Vel.x);
+                    Vel.x = -speed * HORIZONTAL_BOUNCE; // 반대편 허공으로 팍 튕겨나감
+                    if (Vel.y > 0.0f) Vel.y *= 0.6f;    // 상승력이 꺾여 대각선 아래로 통통 떨어지도록 유도
+                }
+            }
+            else // 오른쪽 벽 옆구리 박음 (왼쪽 이동 중)
+            {
+                Owner->Pos.x = platform.right + HalfW;
+                if (Vel.x <= 0.0f)
+                {
+                    float speed = max(MinBounceSpeed, -Vel.x);
+                    Vel.x = speed * HORIZONTAL_BOUNCE;
+                    if (Vel.y > 0.0f) Vel.y *= 0.6f;
+                }
+            }
+        }
+        else
+        {
+            // 상하 수직 충돌 해결
+            if (minO == oT)
+            {
+                // [지면 착지]
+                if (Vel.y <= 0.0f)
+                {
+                    Owner->Pos.y = platform.top + HalfH;
+                    Vel.y = 0;
+                    OnGround = true;
+                    if (plat->Type == PlatformType::Ice) OnIce = true;
+                    
+                    // Reverse 플랫폼 밟으면 2초간 반전
+                    if (plat->Type == PlatformType::Reverse)
+                    {
+                      ReverseTimer = 2.0f;
+                    }
+                    else
+                    {
+                      // 다른 플랫폼 밟으면 Reverse 해제
+                      ReverseTimer = 0.0f;
+                    }
+
+                    // Vanishing 플랫폼이면 타이머 시작
+                    if (plat->Type == PlatformType::Vanishing)
+                    {
+                      plat->Triggered = true;
+                    }
+                }
+            }
+            else if (minO == oB)
+            {
+                // [천장 박음] 쿵 하고 아래로 정직하게 바운스 처리 (선언해두신 BounceFactor 멤버 활용)
+                Owner->Pos.y = platform.bottom - HalfH;
+                if (Vel.y > 0.0f) Vel.y = -Vel.y * BounceFactor;
+            }
+        }
     }
 
     void UpdateFly(float dt)
@@ -910,6 +1187,7 @@ private:
         Owner->Pos.x += dir.x * FLY_SPEED * dt;
         Owner->Pos.y += dir.y * FLY_SPEED * dt;
         Vel = { 0, 0 };
+        IsStunned = false;
     }
 
     AABB GetAABB() const
@@ -963,6 +1241,7 @@ public:
 
     ~JumpChargeBar() override { if (CB) CB->Release(); }
 };
+
 
 // ============================================================
 //  GameLoop
@@ -1161,6 +1440,9 @@ public:
         case PlatformType::Normal:      color = { 0.5f, 0.4f, 0.3f, 1.0f }; break;
         case PlatformType::Ice:         color = { 0.6f, 0.9f, 1.0f, 1.0f }; break;
         case PlatformType::PassThrough: color = { 0.4f, 0.8f, 0.4f, 1.0f }; break;
+        case PlatformType::Vanishing:   color = { 1.0f, 0.3f, 0.3f, 1.0f }; break;
+        case PlatformType::Reverse:     color = { 0.8f, 0.3f, 1.0f, 1.0f }; break;
+        case PlatformType::Moving:      color = { 1.0f, 0.8f, 0.2f, 1.0f }; break;
         }
 
         // ── 머티리얼 생성 (플랫폼마다 독립)
