@@ -1093,8 +1093,14 @@ public:
     // 式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式
     void BuildMap()
     {
+        // 天 豭薹 漁 天
+        AddPlatform(PlatformType::Normal, -10.0f, -5.0f, -5.0f, 18.0f, L"ground1.png");
+
+        // 天 螃艇薹 漁 天
+        AddPlatform(PlatformType::Normal, 5.0f, -5.0f, 10.0f, 18.0f, L"ground1.png");
+
         // 式式 夥款 式式
-        AddPlatform(PlatformType::Normal, -5.0f, -3.0f, 5.0f, 0.0f, L"ground2.png");
+        AddPlatform(PlatformType::Normal, -5.0f, -5.0f, 5.0f, 0.0f, L"ground2.png");
 
         // 式式 1類 式式
         AddPlatform(PlatformType::Normal, -3.0f, 1.5f, 0.0f, 1.8f, L"ground1.png");
