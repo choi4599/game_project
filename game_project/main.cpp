@@ -1,50 +1,50 @@
-/// ============================================================
+ï»¿/// ============================================================
 //  JumpKing-Style Platformer  |  DirectX 11  |  Single File
 //
-//  ¡Ú È®Àå °¡ÀÌµå ¡Ú
-//  ¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡
-//  [»õ ¾ÆÀÌÅÛ Ãß°¡]
-//    1. ItemType ¿­°ÅÇü¿¡ Ç×¸ñ Ãß°¡
-//    2. RouletteState::Items[] ¹è¿­¿¡ Ãß°¡ (·ê·¿¿¡¼­ µîÀå)
-//    3. RouletteState::ITEM_COUNT °ª +1
-//    4. PlayerItemState ¿¡ Å¸ÀÌ¸Ó/ÇÃ·¡±× ¸â¹ö Ãß°¡
-//    5. PlayerItemState::Apply() switch ¿¡ ¹ßµ¿ ·ÎÁ÷ Ãß°¡
-//    6. PlayerItemState::Update() ¿¡ Å¸ÀÌ¸Ó Ã³¸® Ãß°¡
-//    7. GameLoop ¿¡ ¾ÆÀÌÄÜ ¸ÓÆ¼¸®¾ó Ãß°¡
-//       (MatRouletteIcon[], MatItemBar[] ¹è¿­ Å©±âµµ ÇÔ²² ´Ã¸± °Í)
+//  â˜… í™•ì¥ ê°€ì´ë“œ â˜…
+//  â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//  [ìƒˆ ì•„ì´í…œ ì¶”ê°€]
+//    1. ItemType ì—´ê±°í˜•ì— í•­ëª© ì¶”ê°€
+//    2. RouletteState::Items[] ë°°ì—´ì— ì¶”ê°€ (ë£°ë ›ì—ì„œ ë“±ì¥)
+//    3. RouletteState::ITEM_COUNT ê°’ +1
+//    4. PlayerItemState ì— íƒ€ì´ë¨¸/í”Œë˜ê·¸ ë©¤ë²„ ì¶”ê°€
+//    5. PlayerItemState::Apply() switch ì— ë°œë™ ë¡œì§ ì¶”ê°€
+//    6. PlayerItemState::Update() ì— íƒ€ì´ë¨¸ ì²˜ë¦¬ ì¶”ê°€
+//    7. GameLoop ì— ì•„ì´ì½˜ ë¨¸í‹°ë¦¬ì–¼ ì¶”ê°€
+//       (MatRouletteIcon[], MatItemBar[] ë°°ì—´ í¬ê¸°ë„ í•¨ê»˜ ëŠ˜ë¦´ ê²ƒ)
 //
-//  [·£´ı¹Ú½º ¹èÄ¡]
-//    BuildRandomBoxes() ¾È¿¡ ÇÑ ÁÙ Ãß°¡:
+//  [ëœë¤ë°•ìŠ¤ ë°°ì¹˜]
+//    BuildRandomBoxes() ì•ˆì— í•œ ì¤„ ì¶”ê°€:
 //    AddRandomBox(cx, cy);
 //    AddRandomBox(cx, cy, L"tex.png");
 //
-//  [»õ ÇÃ·§Æû ¹èÄ¡]
-//    BuildMap() ¾È¿¡ ÇÑ ÁÙ Ãß°¡:
-//    AddPlatform(Å¸ÀÔ, LX, BY, RX, TY);            // ´Ü»ö
-//    AddPlatform(Å¸ÀÔ, LX, BY, RX, TY, L"tex.png"); // ÅØ½ºÃ³
+//  [ìƒˆ í”Œë«í¼ ë°°ì¹˜]
+//    BuildMap() ì•ˆì— í•œ ì¤„ ì¶”ê°€:
+//    AddPlatform(íƒ€ì…, LX, BY, RX, TY);            // ë‹¨ìƒ‰
+//    AddPlatform(íƒ€ì…, LX, BY, RX, TY, L"tex.png"); // í…ìŠ¤ì²˜
 //
-//  [»õ ÇÃ·§Æû Å¸ÀÔ Ãß°¡]
-//    1. PlatformType ¿­°ÅÇü¿¡ Ç×¸ñ Ãß°¡
-//    2. AddPlatform() ÀÇ switch ¿¡ ±âº» »ö»ó Ãß°¡
-//    3. PlayerController::UpdateMovement() ÀÇ
-//       Å¸ÀÔº° ºĞ±â(2´Ü°è)¿¡ ÀÌµ¿ µ¿ÀÛ Ãß°¡
-//    ¡Ø Á¡ÇÁ Áß ÀÌµ¿ Â÷´Ü(1´Ü°è)Àº ÀÚµ¿ Àû¿ëµÊ
+//  [ìƒˆ í”Œë«í¼ íƒ€ì… ì¶”ê°€]
+//    1. PlatformType ì—´ê±°í˜•ì— í•­ëª© ì¶”ê°€
+//    2. AddPlatform() ì˜ switch ì— ê¸°ë³¸ ìƒ‰ìƒ ì¶”ê°€
+//    3. PlayerController::UpdateMovement() ì˜
+//       íƒ€ì…ë³„ ë¶„ê¸°(2ë‹¨ê³„)ì— ì´ë™ ë™ì‘ ì¶”ê°€
+//    â€» ì í”„ ì¤‘ ì´ë™ ì°¨ë‹¨(1ë‹¨ê³„)ì€ ìë™ ì ìš©ë¨
 //
-//  [»õ ÄÄÆ÷³ÍÆ® Ãß°¡]
-//    Component ¸¦ »ó¼Ó ¡æ Start/Input/Update/Render ¿À¹ö¶óÀÌµå
-//    ¿øÇÏ´Â GameObject ¿¡ AddComponent() ·Î ºÙÀÌ¸é ³¡
+//  [ìƒˆ ì»´í¬ë„ŒíŠ¸ ì¶”ê°€]
+//    Component ë¥¼ ìƒì† â†’ Start/Input/Update/Render ì˜¤ë²„ë¼ì´ë“œ
+//    ì›í•˜ëŠ” GameObject ì— AddComponent() ë¡œ ë¶™ì´ë©´ ë
 //
-//  [ÅØ½ºÃ³]
-//    ½ÇÇàÆÄÀÏ ¿·¿¡ PNG ¹èÄ¡ ÈÄ AddPlatform ¸¶Áö¸· ÀÎÀÚ·Î °æ·Î Àü´Ş
-//    °°Àº ÆÄÀÏÀº TexCache °¡ ÀÚµ¿À¸·Î Áßº¹ ·Îµå¸¦ ¹æÁöÇÔ
-// ¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡
-// ±¸Çö ³»¿ë 
+//  [í…ìŠ¤ì²˜]
+//    ì‹¤í–‰íŒŒì¼ ì˜†ì— PNG ë°°ì¹˜ í›„ AddPlatform ë§ˆì§€ë§‰ ì¸ìë¡œ ê²½ë¡œ ì „ë‹¬
+//    ê°™ì€ íŒŒì¼ì€ TexCache ê°€ ìë™ìœ¼ë¡œ ì¤‘ë³µ ë¡œë“œë¥¼ ë°©ì§€í•¨
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// êµ¬í˜„ ë‚´ìš© 
 // 2026.05.08
-// °ÔÀÓ ·çÇÁ ±âº» ±¸Á¶, Ä«¸Ş¶ó ÃßÀû
-// ¹°¸® : Áß·Â, °¡¼Óµµ ±â¹İ Áö¸é ÀÌµ¿(ÃÖ°í¼Óµµ Å¬·¥ÇÁ), °øÁß °ü¼º À¯Áö + ¾àÇÑ º¸Á¤, Á¡ÇÁ ÃæÀü ½Ã½ºÅÛ(È¦µå ¡æ ¸±¸®Áî), Á¡ÇÁ Áß ÀÌµ¿ Â÷´Ü(¸ğµç Å¸ÀÔ °øÅë), °øÁß ÀçÁ¡ÇÁ ¹æÁö, AABB Ãæµ¹ ÇØ°á(ÃÖ¼Ò Ä§Åõ ¹æÇâ ¹Ğ¾î³¿)
-// ÇÃ·¿Æû : normal, ice, passThrough 
-// Á¶ÀÛÅ° : ¹æÇâÅ°(ÀÌµ¿), space(Á¡ÇÁ), f(fly), c/r(checkpoint), esc(Á¾·á), ¸¶¿ì½º ÁÂÅ¬¸¯(ÄÜ¼Ö ÁÂÇ¥ Ãâ·Â)
-// Ãß°¡ : ¾ÆÀÌÅÛ(·£´ı¹Ú½º ¡æ ·ê·¿ ¡æ ¹ßµ¿), hitSideWall Á¶°Ç ¼öÁ¤, °øÁß JumpCharge Áï½Ã ÃÊ±âÈ­
+// ê²Œì„ ë£¨í”„ ê¸°ë³¸ êµ¬ì¡°, ì¹´ë©”ë¼ ì¶”ì 
+// ë¬¼ë¦¬ : ì¤‘ë ¥, ê°€ì†ë„ ê¸°ë°˜ ì§€ë©´ ì´ë™(ìµœê³ ì†ë„ í´ë¨í”„), ê³µì¤‘ ê´€ì„± ìœ ì§€ + ì•½í•œ ë³´ì •, ì í”„ ì¶©ì „ ì‹œìŠ¤í…œ(í™€ë“œ â†’ ë¦´ë¦¬ì¦ˆ), ì í”„ ì¤‘ ì´ë™ ì°¨ë‹¨(ëª¨ë“  íƒ€ì… ê³µí†µ), ê³µì¤‘ ì¬ì í”„ ë°©ì§€, AABB ì¶©ëŒ í•´ê²°(ìµœì†Œ ì¹¨íˆ¬ ë°©í–¥ ë°€ì–´ëƒ„)
+// í”Œë ›í¼ : normal, ice, passThrough 
+// ì¡°ì‘í‚¤ : ë°©í–¥í‚¤(ì´ë™), space(ì í”„), f(fly), c/r(checkpoint), esc(ì¢…ë£Œ), ë§ˆìš°ìŠ¤ ì¢Œí´ë¦­(ì½˜ì†” ì¢Œí‘œ ì¶œë ¥)
+// ì¶”ê°€ : ì•„ì´í…œ(ëœë¤ë°•ìŠ¤ â†’ ë£°ë › â†’ ë°œë™), hitSideWall ì¡°ê±´ ìˆ˜ì •, ê³µì¤‘ JumpCharge ì¦‰ì‹œ ì´ˆê¸°í™”
 // ============================================================
 
 #include <windows.h>
@@ -70,20 +70,20 @@
 using namespace DirectX;
 
 // ============================================================
-//  Àü¹æ ¼±¾ğ
+//  ì „ë°© ì„ ì–¸
 // ============================================================
 class GraphicsContext;
 class GameObject;
 struct PlayerController;
 
 // ============================================================
-//  È­¸é »ó¼ö
+//  í™”ë©´ ìƒìˆ˜
 // ============================================================
 static constexpr int SCREEN_W = 800;
 static constexpr int SCREEN_H = 600;
 
 // ============================================================
-//  ¹°¸® »ó¼ö  ¦¡  °ÔÀÓ ´À³¦ Á¶Á¤Àº ¿©±â¼­
+//  ë¬¼ë¦¬ ìƒìˆ˜  â”€  ê²Œì„ ëŠë‚Œ ì¡°ì •ì€ ì—¬ê¸°ì„œ
 // ============================================================
 static constexpr float GRAVITY = -18.0f;
 static constexpr float JUMP_MAX = 9.0f;
@@ -99,7 +99,7 @@ static constexpr float GROUND_ACCEL = 10.0f;
 static constexpr float GROUND_DECEL = 20.0f;
 
 // ============================================================
-//  ¾ÆÀÌÅÛ »ó¼ö
+//  ì•„ì´í…œ ìƒìˆ˜
 // ============================================================
 static constexpr float ITEM_FLY_DURATION = 3.0f;
 static constexpr float FLY_ITEM_SPEED = 2.0f;
@@ -108,14 +108,14 @@ static constexpr float ITEM_SHIELD_DURATION = 8.0f;
 static constexpr float ITEM_PICKUP_RADIUS = 0.5f;
 
 // ============================================================
-//  ·ê·¿ »ó¼ö
+//  ë£°ë › ìƒìˆ˜
 // ============================================================
 static constexpr float ROULETTE_DURATION = 2.0f;
 static constexpr float ROULETTE_INTERVAL_MIN = 0.05f;
 static constexpr float ROULETTE_INTERVAL_MAX = 0.4f;
 
 // ============================================================
-//  ±âº» ÀÚ·áÇü
+//  ê¸°ë³¸ ìë£Œí˜•
 // ============================================================
 struct Vec2 { float x = 0, y = 0; };
 
@@ -144,11 +144,11 @@ struct AABB
 };
 
 // ============================================================
-//  ÇÃ·§Æû Å¸ÀÔ
-//  ¡Ú »õ Å¸ÀÔ Ãß°¡ ½Ã:
-//     1. ¿©±â¿¡ ¿­°Å°ª Ãß°¡
-//     2. AddPlatform() switch ¿¡ ±âº»»ö Ãß°¡
-//     3. UpdateMovement() 2´Ü°è ºĞ±â¿¡ ÀÌµ¿ µ¿ÀÛ Ãß°¡
+//  í”Œë«í¼ íƒ€ì…
+//  â˜… ìƒˆ íƒ€ì… ì¶”ê°€ ì‹œ:
+//     1. ì—¬ê¸°ì— ì—´ê±°ê°’ ì¶”ê°€
+//     2. AddPlatform() switch ì— ê¸°ë³¸ìƒ‰ ì¶”ê°€
+//     3. UpdateMovement() 2ë‹¨ê³„ ë¶„ê¸°ì— ì´ë™ ë™ì‘ ì¶”ê°€
 // ============================================================
 enum class PlatformType {
     Normal,
@@ -160,8 +160,8 @@ enum class PlatformType {
 };
 
 // ============================================================
-//  ¾ÆÀÌÅÛ Å¸ÀÔ
-//  ¡Ú »õ ¾ÆÀÌÅÛ Ãß°¡ ½Ã ¿©±â¿¡ ¿­°Å°ª Ãß°¡
+//  ì•„ì´í…œ íƒ€ì…
+//  â˜… ìƒˆ ì•„ì´í…œ ì¶”ê°€ ì‹œ ì—¬ê¸°ì— ì—´ê±°ê°’ ì¶”ê°€
 // ============================================================
 enum class ItemType { None = 0, Fly, PassThrough, Shield, Checkpoint };
 
@@ -342,7 +342,7 @@ public:
 };
 
 // ============================================================
-//  ÅØ½ºÃ³ ·Î´õ (WIC)
+//  í…ìŠ¤ì²˜ ë¡œë” (WIC)
 // ============================================================
 ID3D11ShaderResourceView* LoadTextureFromFile(GraphicsContext* gfx,
     const wchar_t* path)
@@ -359,7 +359,7 @@ ID3D11ShaderResourceView* LoadTextureFromFile(GraphicsContext* gfx,
     if (FAILED(factory->CreateDecoderFromFilename(path, nullptr,
         GENERIC_READ, WICDecodeMetadataCacheOnLoad, &decoder)))
     {
-        printf("[Texture] ÆÄÀÏ ¿­±â ½ÇÆĞ: %ls\n", path);
+        printf("[Texture] íŒŒì¼ ì—´ê¸° ì‹¤íŒ¨: %ls\n", path);
         factory->Release();
         return nullptr;
     }
@@ -393,7 +393,7 @@ ID3D11ShaderResourceView* LoadTextureFromFile(GraphicsContext* gfx,
     tex->Release(); converter->Release();
     frame->Release(); decoder->Release(); factory->Release();
 
-    printf("[Texture] ·Îµå ¼º°ø: %ls (%ux%u)\n", path, w, h);
+    printf("[Texture] ë¡œë“œ ì„±ê³µ: %ls (%ux%u)\n", path, w, h);
     return srv;
 }
 
@@ -469,7 +469,7 @@ public:
 };
 
 // ============================================================
-//  Material ±â¹İ
+//  Material ê¸°ë°˜
 // ============================================================
 class Material
 {
@@ -480,7 +480,7 @@ public:
     virtual void Bind(GraphicsContext* gfx) = 0;
 };
 
-// ¦¡¦¡ ColorMaterial : ´Ü»ö ¶Ç´Â ÅØ½ºÃ³ ¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡
+// â”€â”€ ColorMaterial : ë‹¨ìƒ‰ ë˜ëŠ” í…ìŠ¤ì²˜ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class ColorMaterial : public Material
 {
 public:
@@ -739,7 +739,7 @@ public:
 };
 
 // ============================================================
-//  ¾ÆÀÌÅÛ È¿°ú »óÅÂ  (PlayerController Àü¹æ ¼±¾ğ ÇÊ¿ä)
+//  ì•„ì´í…œ íš¨ê³¼ ìƒíƒœ  (PlayerController ì „ë°© ì„ ì–¸ í•„ìš”)
 // ============================================================
 struct PlayerItemState
 {
@@ -760,8 +760,8 @@ struct PlayerItemState
 };
 
 // ============================================================
-//  ·ê·¿ »óÅÂ
-//  ¡Ú ¾ÆÀÌÅÛ Ãß°¡ ½Ã Items[], ITEM_COUNT ¼öÁ¤
+//  ë£°ë › ìƒíƒœ
+//  â˜… ì•„ì´í…œ ì¶”ê°€ ì‹œ Items[], ITEM_COUNT ìˆ˜ì •
 // ============================================================
 struct RouletteState
 {
@@ -842,64 +842,64 @@ struct RouletteState
 class PlayerController : public Component
 {
 public:
-    // ¦¡¦¡ ¿ÜºÎ ÁÖÀÔ ¦¡¦¡
+    // â”€â”€ ì™¸ë¶€ ì£¼ì… â”€â”€
     std::vector<GameObject*>* Platforms = nullptr;
     PlayerItemState* ItemState = nullptr;
     GameObject* CheckpointFlag = nullptr;
 
-    // ¦¡¦¡ ¹°¸® »óÅÂ ¦¡¦¡
+    // â”€â”€ ë¬¼ë¦¬ ìƒíƒœ â”€â”€
     Vec2  Vel = { 0, 0 };
     bool  OnGround = false;
     float HalfW = 0.3f;
     float HalfH = 0.3f;
 
-    // ¦¡¦¡ Á¡ÇÁ »óÅÂ (ÃæÀü ½Ã½ºÅÛ) ¦¡¦¡
+    // â”€â”€ ì í”„ ìƒíƒœ (ì¶©ì „ ì‹œìŠ¤í…œ) â”€â”€
     bool  PrevSpace = false;
     bool  SpacePressedThisFrame = false;
     bool  SpaceHeld = false;
     float JumpCharge = 0.0f;
     bool  JumpedThisPress = false;
 
-    // ¦¡¦¡ °í±Ş Á¶ÀÛ°¨ Å¸ÀÌ¸Ó ¦¡¦¡
+    // â”€â”€ ê³ ê¸‰ ì¡°ì‘ê° íƒ€ì´ë¨¸ â”€â”€
     float CoyoteTimer = 0.0f;
     float JumpBufferTimer = 0.0f;
     float CurrentShakeX = 0.0f;
 
-    // ¦¡¦¡ Á¡ÇÁÅ· Æ¯È­ »óÅÂ ¦¡¦¡
+    // â”€â”€ ì í”„í‚¹ íŠ¹í™” ìƒíƒœ â”€â”€
     bool  IsStunned = false;
 
-    // ¦¡¦¡ ÀÔ·Â ¦¡¦¡
+    // â”€â”€ ì…ë ¥ â”€â”€
     float MoveInput = 0.0f;
 
-    // ¦¡¦¡ Áö¸é Å¸ÀÔ ÇÃ·¡±× ¦¡¦¡
+    // â”€â”€ ì§€ë©´ íƒ€ì… í”Œë˜ê·¸ â”€â”€
     bool  OnIce = false;
     float ReverseTimer = 0.0f;
     bool IsReverse() const { return ReverseTimer > 0.0f; }
 
-    // ¦¡¦¡ Æ¨±è(Bounce) ¼³Á¤ ¦¡¦¡
+    // â”€â”€ íŠ•ê¹€(Bounce) ì„¤ì • â”€â”€
     float BounceFactor = 0.85f;
     float MinBounceSpeed = 3.0f;
 
-    // ¦¡¦¡ ºñÇà ¸ğµå ¦¡¦¡
-    bool FlyMode = false;   // DevFly (FÅ°)
-    bool item_flymode = false;   // ¾ÆÀÌÅÛ Fly
+    // â”€â”€ ë¹„í–‰ ëª¨ë“œ â”€â”€
+    bool FlyMode = false;   // DevFly (Fí‚¤)
+    bool item_flymode = false;   // ì•„ì´í…œ Fly
 
-    // ¦¡¦¡ Ã¼Å©Æ÷ÀÎÆ® ¦¡¦¡
+    // â”€â”€ ì²´í¬í¬ì¸íŠ¸ â”€â”€
     Vec2  Checkpoint = { 0, 0.5f };
 
-    // ¦¡¦¡ ·ê·¿ ¦¡¦¡
+    // â”€â”€ ë£°ë › â”€â”€
     RouletteState Roulette;
 
-    // ¦¡¦¡ ÇÃ·¹ÀÌ¾î »óÅÂº° ¸ÓÆ¼¸®¾ó (¿ÜºÎ ÁÖÀÔ) ¦¡¦¡
+    // â”€â”€ í”Œë ˆì´ì–´ ìƒíƒœë³„ ë¨¸í‹°ë¦¬ì–¼ (ì™¸ë¶€ ì£¼ì…) â”€â”€
     ColorMaterial* MatNormal = nullptr;
     ColorMaterial* MatFly = nullptr;
     ColorMaterial* MatPassThrough = nullptr;
     ColorMaterial* MatShield = nullptr;
 
-    // ¦¡¦¡ ÀÔ·Â ¿§Áö °¨Áö ¦¡¦¡
+    // â”€â”€ ì…ë ¥ ì—£ì§€ ê°ì§€ â”€â”€
     bool PrevF = false, PrevR = false, PrevC = false;
 
-    // ¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     void Input() override
     {
         bool spaceNow = (GetAsyncKeyState(VK_SPACE) & 0x8000) != 0;
@@ -935,25 +935,25 @@ public:
         PrevF = fNow; PrevR = rNow; PrevC = cNow;
     }
 
-    // ¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     void Update(float dt) override
     {
-        // ¦¡¦¡ ¾ÆÀÌÅÛ È¿°ú °»½Å ¦¡¦¡
+        // â”€â”€ ì•„ì´í…œ íš¨ê³¼ ê°±ì‹  â”€â”€
         if (ItemState) ItemState->Update(dt, this);
 
-        // ¦¡¦¡ ·ê·¿ °»½Å ¦¡¦¡
+        // â”€â”€ ë£°ë › ê°±ì‹  â”€â”€
         if (Roulette.IsRunning())
         {
             bool done = Roulette.Update(dt);
             if (done && ItemState)
             {
                 ItemType result = Roulette.GetResult();
-                printf("[RandomBox] È®Á¤: type=%d ¡æ Áï½Ã ¹ßµ¿\n", (int)result);
+                printf("[RandomBox] í™•ì •: type=%d â†’ ì¦‰ì‹œ ë°œë™\n", (int)result);
                 ItemState->Apply(result, this);
             }
         }
 
-        // ¦¡¦¡ ¸ÓÆ¼¸®¾ó ÀüÈ¯ ¦¡¦¡
+        // â”€â”€ ë¨¸í‹°ë¦¬ì–¼ ì „í™˜ â”€â”€
         if (MatNormal)
         {
             auto* mr = Owner->GetComponent<MeshRenderer>();
@@ -966,7 +966,7 @@ public:
             }
         }
 
-        // ¦¡¦¡ Fly ¾ÆÀÌÅÛ ¹ßµ¿ ÁßÀÌ¸é FlyMode °­Á¦ ON ¦¡¦¡
+        // â”€â”€ Fly ì•„ì´í…œ ë°œë™ ì¤‘ì´ë©´ FlyMode ê°•ì œ ON â”€â”€
         if (ItemState && ItemState->FlyActive) FlyMode = true;
 
         if (FlyMode)
@@ -1004,7 +1004,7 @@ public:
     }
 
 private:
-    // ¦¡¦¡ ¼öÆò ÀÌµ¿ ¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡
+    // â”€â”€ ìˆ˜í‰ ì´ë™ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     void UpdateMovement(float dt)
     {
         if (SpaceHeld && OnGround && !IsStunned)
@@ -1077,7 +1077,7 @@ private:
         }
     }
 
-    // ¦¡¦¡ Á¡ÇÁ (ÄÚ¿äÅ× Å¸ÀÓ & ¹öÆÛ¸µ Àû¿ë) ¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡
+    // â”€â”€ ì í”„ (ì½”ìš”í…Œ íƒ€ì„ & ë²„í¼ë§ ì ìš©) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     void UpdateJump(float dt)
     {
         if (OnGround) CoyoteTimer = 0.1f;
@@ -1111,13 +1111,13 @@ private:
         }
         else
         {
-            // ¡Ú ¼öÁ¤: °øÁßÀ¸·Î ¶³¾îÁö´Â ¼ø°£ Â÷Â¡°ª Áï½Ã ÃÊ±âÈ­
+            // â˜… ìˆ˜ì •: ê³µì¤‘ìœ¼ë¡œ ë–¨ì–´ì§€ëŠ” ìˆœê°„ ì°¨ì§•ê°’ ì¦‰ì‹œ ì´ˆê¸°í™”
             JumpCharge = 0.0f;
             if (!SpaceHeld) JumpedThisPress = false;
         }
     }
 
-    // ¦¡¦¡ Ãæµ¹ ÇØ°á ¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡
+    // â”€â”€ ì¶©ëŒ í•´ê²° â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     void ResolveAllCollisions(float dt)
     {
         OnGround = false;
@@ -1141,7 +1141,7 @@ private:
 
         bool shielded = (ItemState && ItemState->ShieldActive);
 
-        // ¦¡¦¡ PassThrough ÇÃ·§Æû Å¸ÀÔ OR ¾ÆÀÌÅÛ PassThrough ¦¡¦¡
+        // â”€â”€ PassThrough í”Œë«í¼ íƒ€ì… OR ì•„ì´í…œ PassThrough â”€â”€
         if (plat->Type == PlatformType::PassThrough ||
             (ItemState && ItemState->PassThroughActive))
         {
@@ -1183,7 +1183,7 @@ private:
 
         const float HORIZONTAL_BOUNCE = 1.3f;
 
-        // ¼öÁ¤: minO != oB Á¶°Ç Ãß°¡ (2¹ø ÄÚµå ±âÁØ)
+        // ìˆ˜ì •: minO != oB ì¡°ê±´ ì¶”ê°€ (2ë²ˆ ì½”ë“œ ê¸°ì¤€)
         bool hitSideWall = (minO == oL || minO == oR) ||
             (abs(Vel.x) > 1.0f && minO != oT && minO != oB);
 
@@ -1275,7 +1275,7 @@ private:
 };
 
 // ============================================================
-//  PlayerItemState ±¸Çö (PlayerController Á¤ÀÇ ÀÌÈÄ)
+//  PlayerItemState êµ¬í˜„ (PlayerController ì •ì˜ ì´í›„)
 // ============================================================
 inline void PlayerItemState::Apply(ItemType type, PlayerController* pc)
 {
@@ -1288,19 +1288,19 @@ inline void PlayerItemState::Apply(ItemType type, PlayerController* pc)
         pc->FlyMode = true;
         pc->Vel = { 0, 0 };
         pc->item_flymode = true;
-        printf("[Item] Fly ¹ßµ¿ %.1fs\n", ITEM_FLY_DURATION);
+        printf("[Item] Fly ë°œë™ %.1fs\n", ITEM_FLY_DURATION);
         break;
 
     case ItemType::PassThrough:
         PassThroughActive = true;
         PassThroughTimer = ITEM_PASSTHROUGH_DURATION;
-        printf("[Item] PassThrough ¹ßµ¿ %.1fs\n", ITEM_PASSTHROUGH_DURATION);
+        printf("[Item] PassThrough ë°œë™ %.1fs\n", ITEM_PASSTHROUGH_DURATION);
         break;
 
     case ItemType::Shield:
         ShieldActive = true;
         ShieldTimer = ITEM_SHIELD_DURATION;
-        printf("[Item] Shield ¹ßµ¿ %.1fs\n", ITEM_SHIELD_DURATION);
+        printf("[Item] Shield ë°œë™ %.1fs\n", ITEM_SHIELD_DURATION);
         break;
 
     case ItemType::Checkpoint:
@@ -1312,7 +1312,7 @@ inline void PlayerItemState::Apply(ItemType type, PlayerController* pc)
             pc->CheckpointFlag->Active = true;
             pc->CheckpointFlag->Pos = { pc->Owner->Pos.x, pc->Owner->Pos.y - 0.1f };
         }
-        printf("[Item] Checkpoint ¼³Ä¡ (%.2f, %.2f)\n", CheckpointPos.x, CheckpointPos.y);
+        printf("[Item] Checkpoint ì„¤ì¹˜ (%.2f, %.2f)\n", CheckpointPos.x, CheckpointPos.y);
         break;
 
     default: break;
@@ -1331,7 +1331,7 @@ inline void PlayerItemState::Update(float dt, PlayerController* pc)
             pc->FlyMode = false;
             pc->Vel = { 0, 0 };
             pc->item_flymode = false;
-            printf("[Item] Fly Á¾·á\n");
+            printf("[Item] Fly ì¢…ë£Œ\n");
         }
     }
     if (PassThroughActive)
@@ -1341,7 +1341,7 @@ inline void PlayerItemState::Update(float dt, PlayerController* pc)
         {
             PassThroughActive = false;
             PassThroughTimer = 0.0f;
-            printf("[Item] PassThrough Á¾·á\n");
+            printf("[Item] PassThrough ì¢…ë£Œ\n");
         }
     }
     if (ShieldActive)
@@ -1351,13 +1351,13 @@ inline void PlayerItemState::Update(float dt, PlayerController* pc)
         {
             ShieldActive = false;
             ShieldTimer = 0.0f;
-            printf("[Item] Shield Á¾·á\n");
+            printf("[Item] Shield ì¢…ë£Œ\n");
         }
     }
 }
 
 // ============================================================
-//  JumpChargeBar  ¦¡  ÃæÀü·® ½Ã°¢È­
+//  JumpChargeBar  â”€  ì¶©ì „ëŸ‰ ì‹œê°í™”
 // ============================================================
 class JumpChargeBar : public Component
 {
@@ -1400,7 +1400,7 @@ public:
 };
 
 // ============================================================
-//  ActiveItemBar  ¦¡  ¹ßµ¿ Áß ¾ÆÀÌÅÛ ÀÜ¿©½Ã°£ ¹Ù (ÇÃ·¹ÀÌ¾î À§)
+//  ActiveItemBar  â”€  ë°œë™ ì¤‘ ì•„ì´í…œ ì”ì—¬ì‹œê°„ ë°” (í”Œë ˆì´ì–´ ìœ„)
 // ============================================================
 class ActiveItemBar : public Component
 {
@@ -1468,7 +1468,7 @@ private:
 };
 
 // ============================================================
-//  RouletteUI  ¦¡  ·ê·¿ ¾ÆÀÌÄÜ (ÇÃ·¹ÀÌ¾î ¸Ó¸® À§)
+//  RouletteUI  â”€  ë£°ë › ì•„ì´ì½˜ (í”Œë ˆì´ì–´ ë¨¸ë¦¬ ìœ„)
 // ============================================================
 class RouletteUI : public Component
 {
@@ -1516,7 +1516,7 @@ public:
 };
 
 // ============================================================
-//  CheckpointFlagRenderer  ¦¡  ±ê´ë + ±ê¹ß ·»´õ¸µ
+//  CheckpointFlagRenderer  â”€  ê¹ƒëŒ€ + ê¹ƒë°œ ë Œë”ë§
 // ============================================================
 class CheckpointFlagRenderer : public Component
 {
@@ -1562,7 +1562,7 @@ public:
 };
 
 // ============================================================
-//  RandomBoxComp  ¦¡  Á¢ÃË ½Ã »ç¶óÁö°í ·ê·¿ ½ÃÀÛ
+//  RandomBoxComp  â”€  ì ‘ì´‰ ì‹œ ì‚¬ë¼ì§€ê³  ë£°ë › ì‹œì‘
 // ============================================================
 class RandomBoxComp : public Component
 {
@@ -1581,7 +1581,7 @@ public:
             Picked = true;
             Owner->Active = false;
             PC->Roulette.Start();
-            printf("[RandomBox] ·ê·¿ ½ÃÀÛ!\n");
+            printf("[RandomBox] ë£°ë › ì‹œì‘!\n");
         }
     }
 };
@@ -1606,28 +1606,28 @@ public:
     GameObject* FlagObject = nullptr;
     PlayerItemState  ItemStateData;
 
-    // ¦¡¦¡ °øÀ¯ GPU ¸®¼Ò½º ¦¡¦¡
+    // â”€â”€ ê³µìœ  GPU ë¦¬ì†ŒìŠ¤ â”€â”€
     ShaderSet      DefaultShaders;
     Mesh* QuadMesh = nullptr;
     Mesh* BarMesh = nullptr;
 
-    // ¦¡¦¡ ÇÃ·¹ÀÌ¾î ¸ÓÆ¼¸®¾ó ¦¡¦¡
+    // â”€â”€ í”Œë ˆì´ì–´ ë¨¸í‹°ë¦¬ì–¼ â”€â”€
     ColorMaterial* MatPlayer = nullptr;
     ColorMaterial* MatPlayerFly = nullptr;
     ColorMaterial* MatPlayerPT = nullptr;
     ColorMaterial* MatPlayerShld = nullptr;
     ColorMaterial* MatChargeBar = nullptr;
 
-    // ¦¡¦¡ ¾ÆÀÌÅÛ È¿°ú ¹Ù / ·ê·¿ ¾ÆÀÌÄÜ ¸ÓÆ¼¸®¾ó ¦¡¦¡
+    // â”€â”€ ì•„ì´í…œ íš¨ê³¼ ë°” / ë£°ë › ì•„ì´ì½˜ ë¨¸í‹°ë¦¬ì–¼ â”€â”€
     static constexpr int ITEM_MAT_COUNT = 4;
     ColorMaterial* MatItemBar[ITEM_MAT_COUNT] = {};
     ColorMaterial* MatRouletteIcon[ITEM_MAT_COUNT] = {};
 
-    // ¦¡¦¡ ±ê¹ß ¸ÓÆ¼¸®¾ó ¦¡¦¡
+    // â”€â”€ ê¹ƒë°œ ë¨¸í‹°ë¦¬ì–¼ â”€â”€
     ColorMaterial* MatFlagMast = nullptr;
     ColorMaterial* MatFlagFlag = nullptr;
 
-    // ¦¡¦¡ ÇÃ·§Æû ¸ÓÆ¼¸®¾ó ¸ñ·Ï (GameLoop ¼ÒÀ¯) ¦¡¦¡
+    // â”€â”€ í”Œë«í¼ ë¨¸í‹°ë¦¬ì–¼ ëª©ë¡ (GameLoop ì†Œìœ ) â”€â”€
     std::vector<Material*> OwnedMaterials;
 
     bool MousePressed = false;
@@ -1656,7 +1656,7 @@ public:
         printf("[Engine] All resources released.\n");
     }
 
-    // ¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     bool Initialize(HINSTANCE hInst,
         LRESULT(CALLBACK* proc)(HWND, UINT, WPARAM, LPARAM))
     {
@@ -1668,7 +1668,7 @@ public:
         TexCache.Init(&Gfx);
         srand((unsigned)GetTickCount64());
 
-        // ¦¡¦¡ ¼ÎÀÌ´õ ¦¡¦¡
+        // â”€â”€ ì…°ì´ë” â”€â”€
         const char* shaderSrc = R"(
             cbuffer cbWorld    : register(b0) { matrix matWorld; };
             cbuffer cbMaterial : register(b1) { float4 tintColor; int useTexture; float3 pad; };
@@ -1706,11 +1706,11 @@ public:
         };
         DefaultShaders = Gfx.CompileShaders(shaderSrc, ied, 3);
 
-        // ¦¡¦¡ ¸Ş½¬ ¦¡¦¡
+        // â”€â”€ ë©”ì‰¬ â”€â”€
         QuadMesh = new Mesh(); QuadMesh->CreateQuad(&Gfx, -0.5f, -0.5f, 0.5f, 0.5f);
         BarMesh = new Mesh(); BarMesh->CreateQuad(&Gfx, 0.0f, 0.0f, 1.0f, 1.0f);
 
-        // ¦¡¦¡ ÇÃ·¹ÀÌ¾î ¸ÓÆ¼¸®¾ó ¦¡¦¡
+        // â”€â”€ í”Œë ˆì´ì–´ ë¨¸í‹°ë¦¬ì–¼ â”€â”€
         MatPlayer = new ColorMaterial(DefaultShaders, { 0.3f, 0.6f, 1.0f, 1.0f }, &Gfx);
         MatPlayerFly = new ColorMaterial(DefaultShaders, { 0.3f, 0.8f, 1.0f, 1.0f }, &Gfx);
         MatPlayerPT = new ColorMaterial(DefaultShaders, { 0.4f, 1.0f, 0.5f, 1.0f }, &Gfx);
@@ -1727,12 +1727,12 @@ public:
         if (srvPT)   MatPlayerPT->SetTexture(srvPT);
         if (srvShld) MatPlayerShld->SetTexture(srvShld);
 
-        // ¦¡¦¡ ¾ÆÀÌÅÛ ¸ÓÆ¼¸®¾ó ¦¡¦¡
+        // â”€â”€ ì•„ì´í…œ ë¨¸í‹°ë¦¬ì–¼ â”€â”€
         XMFLOAT4 itemColors[ITEM_MAT_COUNT] = {
-            { 0.3f, 0.8f, 1.0f, 1.0f },  // [0] Fly       - ÇÏ´Ã»ö
-            { 0.4f, 1.0f, 0.5f, 1.0f },  // [1] PassThrough - ÃÊ·Ï
-            { 1.0f, 0.3f, 0.3f, 1.0f },  // [2] Shield    - »¡°­
-            { 1.0f, 0.9f, 0.2f, 1.0f },  // [3] Checkpoint - ³ë¶û
+            { 0.3f, 0.8f, 1.0f, 1.0f },  // [0] Fly       - í•˜ëŠ˜ìƒ‰
+            { 0.4f, 1.0f, 0.5f, 1.0f },  // [1] PassThrough - ì´ˆë¡
+            { 1.0f, 0.3f, 0.3f, 1.0f },  // [2] Shield    - ë¹¨ê°•
+            { 1.0f, 0.9f, 0.2f, 1.0f },  // [3] Checkpoint - ë…¸ë‘
         };
         const wchar_t* itemTex[ITEM_MAT_COUNT] = {
             L"item_fly.png", L"item_passthrough.png",
@@ -1750,7 +1750,7 @@ public:
             }
         }
 
-        // ¦¡¦¡ ±ê¹ß ¸ÓÆ¼¸®¾ó ¦¡¦¡
+        // â”€â”€ ê¹ƒë°œ ë¨¸í‹°ë¦¬ì–¼ â”€â”€
         MatFlagMast = new ColorMaterial(DefaultShaders, { 0.7f, 0.5f, 0.2f, 1.0f }, &Gfx);
         MatFlagFlag = new ColorMaterial(DefaultShaders, { 1.0f, 0.2f, 0.2f, 1.0f }, &Gfx);
         MatFlagMast->SetTexture(TexCache.Get(L"flag_mast.png"));
@@ -1761,7 +1761,7 @@ public:
         BuildFlag();
         BuildPlayer();
 
-        // ÇÃ·¹ÀÌ¾î ¡æ ·£´ı¹Ú½º¿¡ ÁÖÀÔ
+        // í”Œë ˆì´ì–´ â†’ ëœë¤ë°•ìŠ¤ì— ì£¼ì…
         if (!World.empty())
         {
             auto* player = World[0];
@@ -1778,52 +1778,52 @@ public:
         printf("  Space     : Jump (hold = charge, release = launch)\n");
         printf("  F : Fly   R : Reset   C : Checkpoint   ESC : Quit\n");
         printf("  LClick : Print world coord\n");
-        printf("  [¾ÆÀÌÅÛ] ÇÏ´Ã=Fly  ÃÊ·Ï=PassThrough  »¡°­=Shield  ³ë¶û=Checkpoint\n");
+        printf("  [ì•„ì´í…œ] í•˜ëŠ˜=Fly  ì´ˆë¡=PassThrough  ë¹¨ê°•=Shield  ë…¸ë‘=Checkpoint\n");
         return true;
     }
 
-    // ¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡
-    //  ¸Ê ±¸¼º
-    //  ¡Ú ÇÃ·§Æû Ãß°¡/Á¦°Å´Â ¿©±â¼­¸¸ ÇÏ¸é µË´Ï´Ù.
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    //  ë§µ êµ¬ì„±
+    //  â˜… í”Œë«í¼ ì¶”ê°€/ì œê±°ëŠ” ì—¬ê¸°ì„œë§Œ í•˜ë©´ ë©ë‹ˆë‹¤.
     //
-    //  ´Ü»ö:    AddPlatform(Å¸ÀÔ, LX, BY, RX, TY);
-    //  ÅØ½ºÃ³:  AddPlatform(Å¸ÀÔ, LX, BY, RX, TY, L"ÆÄÀÏ.png");
-    // ¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡
+    //  ë‹¨ìƒ‰:    AddPlatform(íƒ€ì…, LX, BY, RX, TY);
+    //  í…ìŠ¤ì²˜:  AddPlatform(íƒ€ì…, LX, BY, RX, TY, L"íŒŒì¼.png");
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     void BuildMap()
     {
-        // ¦¡¦¡ ¹Ù´Ú ¦¡¦¡
+        // â”€â”€ ë°”ë‹¥ â”€â”€
         AddPlatform(PlatformType::Normal, -5.0f, -3.0f, 5.0f, 0.0f, L"ground2.png");
 
-        // ¦¡¦¡ 1Ãş ¦¡¦¡
+        // â”€â”€ 1ì¸µ â”€â”€
         AddPlatform(PlatformType::Normal, -3.0f, 1.5f, 0.0f, 1.8f, L"ground1.png");
         AddPlatform(PlatformType::Ice, 1.0f, 1.5f, 3.5f, 1.8f, L"ice1.png");
         AddPlatform(PlatformType::Normal, -1.0f, 3.5f, 2.0f, 3.8f, L"ground1.png");
 
-        // ¦¡¦¡ 2Ãş ¦¡¦¡
+        // â”€â”€ 2ì¸µ â”€â”€
         AddPlatform(PlatformType::Normal, -4.0f, 5.0f, -1.5f, 5.3f, L"ground1.png");
         AddPlatform(PlatformType::Ice, 0.0f, 5.5f, 3.0f, 5.8f, L"ice1.png");
         AddPlatform(PlatformType::PassThrough, -2.0f, 7.0f, 0.5f, 7.2f, L"passThrough1.png");
         AddPlatform(PlatformType::Normal, 1.5f, 7.0f, 4.0f, 7.3f, L"ground1.png");
 
-        // ¦¡¦¡ 3Ãş ¦¡¦¡
+        // â”€â”€ 3ì¸µ â”€â”€
         AddPlatform(PlatformType::Normal, -3.5f, 9.0f, -2.0f, 9.2f, L"ground1.png");
         AddPlatform(PlatformType::Ice, -0.5f, 9.5f, 1.5f, 9.7f, L"ice1.png");
         AddPlatform(PlatformType::Normal, 2.5f, 10.0f, 4.5f, 10.2f, L"ground1.png");
         AddPlatform(PlatformType::Vanishing, -1.0f, 11.5f, 1.5f, 11.7f, L"vanishing1.png");
 
-        // ¦¡¦¡ 4Ãş ¦¡¦¡
+        // â”€â”€ 4ì¸µ â”€â”€
         AddPlatform(PlatformType::Reverse, -4.0f, 13.0f, -1.0f, 13.3f, L"reverse1.png");
         AddPlatform(PlatformType::Ice, 0.5f, 13.5f, 3.5f, 13.8f, L"ice1.png");
         AddPlatform(PlatformType::Moving, -2.0f, 15.5f, 2.0f, 15.8f, L"moving1.png");
 
-        // ¦¡¦¡ ²À´ë±â ¦¡¦¡
+        // â”€â”€ ê¼­ëŒ€ê¸° â”€â”€
         AddPlatform(PlatformType::Normal, -1.5f, 17.5f, 1.5f, 17.8f, L"ground1.png");
     }
 
-    // ¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡
-    //  ÇÃ·§Æû »ı¼º ÇïÆÛ
-    //  ¡Ú »õ PlatformType Ãß°¡ ½Ã switch ¿¡ case ¸¸ Ãß°¡ÇÏ¸é µË´Ï´Ù.
-    // ¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    //  í”Œë«í¼ ìƒì„± í—¬í¼
+    //  â˜… ìƒˆ PlatformType ì¶”ê°€ ì‹œ switch ì— case ë§Œ ì¶”ê°€í•˜ë©´ ë©ë‹ˆë‹¤.
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     void AddPlatform(PlatformType type,
         float lx, float by, float rx, float ty,
         const wchar_t* texPath = nullptr)
@@ -1858,7 +1858,7 @@ public:
         Platforms.push_back(go);
     }
 
-    // ¦¡¦¡ ·£´ı¹Ú½º ¹èÄ¡ ¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡
+    // â”€â”€ ëœë¤ë°•ìŠ¤ ë°°ì¹˜ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     void BuildRandomBoxes()
     {
         AddRandomBox(0.0f, 2.5f);
@@ -1883,7 +1883,7 @@ public:
         RandomBoxes.push_back(go);
     }
 
-    // ¦¡¦¡ Ã¼Å©Æ÷ÀÎÆ® ±ê¹ß ¿ÀºêÁ§Æ® »ı¼º ¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡
+    // â”€â”€ ì²´í¬í¬ì¸íŠ¸ ê¹ƒë°œ ì˜¤ë¸Œì íŠ¸ ìƒì„± â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     void BuildFlag()
     {
         FlagObject = new GameObject(0.0f, 0.0f);
@@ -1897,7 +1897,7 @@ public:
         FlagObject->AddComponent(cfr);
     }
 
-    // ¦¡¦¡ ÇÃ·¹ÀÌ¾î Á¶¸³ ¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡
+    // â”€â”€ í”Œë ˆì´ì–´ ì¡°ë¦½ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     void BuildPlayer()
     {
         auto* player = new GameObject(0.0f, 1.5f);
@@ -1933,7 +1933,7 @@ public:
         World.push_back(player);
     }
 
-    // ¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡¦¡
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     void Run()
     {
         MSG msg = {};
