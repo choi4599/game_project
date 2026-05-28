@@ -3,6 +3,21 @@
 //
 //  ★ 확장 가이드 ★
 //  ─────────────────────────────────────────────────────────
+//  [새 아이템 추가]
+//    1. ItemType 열거형에 항목 추가
+//    2. RouletteState::Items[] 배열에 추가 (룰렛에서 등장)
+//    3. RouletteState::ITEM_COUNT 값 +1
+//    4. PlayerItemState 에 타이머/플래그 멤버 추가
+//    5. PlayerItemState::Apply() switch 에 발동 로직 추가
+//    6. PlayerItemState::Update() 에 타이머 처리 추가
+//    7. GameLoop 에 아이콘 머티리얼 추가
+//       (MatRouletteIcon[], MatItemBar[] 배열 크기도 함께 늘릴 것)
+//
+//  [랜덤박스 배치]
+//    BuildRandomBoxes() 안에 한 줄 추가:
+//    AddRandomBox(cx, cy);
+//    AddRandomBox(cx, cy, L"tex.png");
+//
 //  [새 플랫폼 배치]
 //    BuildMap() 안에 한 줄 추가:
 //    AddPlatform(타입, LX, BY, RX, TY);            // 단색
@@ -29,6 +44,7 @@
 // 물리 : 중력, 가속도 기반 지면 이동(최고속도 클램프), 공중 관성 유지 + 약한 보정, 점프 충전 시스템(홀드 → 릴리즈), 점프 중 이동 차단(모든 타입 공통), 공중 재점프 방지, AABB 충돌 해결(최소 침투 방향 밀어냄)
 // 플렛폼 : normal, ice, passThrough 
 // 조작키 : 방향키(이동), space(점프), f(fly), c/r(checkpoint), esc(종료), 마우스 좌클릭(콘솔 좌표 출력)
+// 추가 : 아이템(랜덤박스 → 룰렛 → 발동), hitSideWall 조건 수정, 공중 JumpCharge 즉시 초기화
 // ============================================================
 
 #include <windows.h>
@@ -42,6 +58,8 @@
 #include <unordered_map>
 #include <chrono>
 #include <algorithm>
+#include <cstdlib>
+#include <cmath>
 
 #pragma comment(lib, "windowscodecs.lib")
 #pragma comment(lib, "d3d11.lib")
@@ -56,6 +74,7 @@ using namespace DirectX;
 // ============================================================
 class GraphicsContext;
 class GameObject;
+struct PlayerController;
 
 // ============================================================
 //  화면 상수
@@ -76,8 +95,24 @@ static constexpr float ICE_DRAG = 0.5f;
 static constexpr float AIR_ACCEL = 2.0f;
 static constexpr float BRAKE_ACCEL = 10.0f;
 static constexpr float FLY_SPEED = 8.0f;
-static constexpr float GROUND_ACCEL = 10.0f;  // 지면 가속도 (높을수록 빠르게 최고속 도달)
-static constexpr float GROUND_DECEL = 20.0f;  // 지면 감속도 (입력 없을 때)
+static constexpr float GROUND_ACCEL = 10.0f;
+static constexpr float GROUND_DECEL = 20.0f;
+
+// ============================================================
+//  아이템 상수
+// ============================================================
+static constexpr float ITEM_FLY_DURATION = 3.0f;
+static constexpr float FLY_ITEM_SPEED = 2.0f;
+static constexpr float ITEM_PASSTHROUGH_DURATION = 5.0f;
+static constexpr float ITEM_SHIELD_DURATION = 8.0f;
+static constexpr float ITEM_PICKUP_RADIUS = 0.5f;
+
+// ============================================================
+//  룰렛 상수
+// ============================================================
+static constexpr float ROULETTE_DURATION = 2.0f;
+static constexpr float ROULETTE_INTERVAL_MIN = 0.05f;
+static constexpr float ROULETTE_INTERVAL_MAX = 0.4f;
 
 // ============================================================
 //  기본 자료형
@@ -115,14 +150,20 @@ struct AABB
 //     2. AddPlatform() switch 에 기본색 추가
 //     3. UpdateMovement() 2단계 분기에 이동 동작 추가
 // ============================================================
-enum class PlatformType { 
-  Normal, 
-  Ice, 
-  PassThrough,
-  Vanishing,
-  Reverse,
-  Moving
+enum class PlatformType {
+    Normal,
+    Ice,
+    PassThrough,
+    Vanishing,
+    Reverse,
+    Moving
 };
+
+// ============================================================
+//  아이템 타입
+//  ★ 새 아이템 추가 시 여기에 열거값 추가
+// ============================================================
+enum class ItemType { None = 0, Fly, PassThrough, Shield, Checkpoint };
 
 // ============================================================
 //  ShaderSet
@@ -223,7 +264,6 @@ public:
         if (FAILED(hr)) return false;
         if (!CreateRTV()) return false;
 
-        // 포인트 샘플러 (픽셀아트 테두리 번짐 방지)
         D3D11_SAMPLER_DESC smpDesc = {};
         smpDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
         smpDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
@@ -231,7 +271,6 @@ public:
         smpDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
         Device->CreateSamplerState(&smpDesc, &Sampler);
 
-        // 알파 블렌드 (PNG 투명 처리)
         D3D11_BLEND_DESC bd = {};
         bd.RenderTarget[0].BlendEnable = TRUE;
         bd.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
@@ -360,8 +399,6 @@ ID3D11ShaderResourceView* LoadTextureFromFile(GraphicsContext* gfx,
 
 // ============================================================
 //  TextureCache
-//  ─ 같은 파일 경로는 한 번만 로드합니다.
-//  ─ 소멸자에서 모든 SRV 를 일괄 해제합니다.
 // ============================================================
 class TextureCache
 {
@@ -370,7 +407,6 @@ class TextureCache
 public:
     void Init(GraphicsContext* g) { gfx = g; }
 
-    // path == nullptr 이면 nullptr 반환 (텍스처 없음 → 단색 폴백)
     ID3D11ShaderResourceView* Get(const wchar_t* path)
     {
         if (!path) return nullptr;
@@ -462,7 +498,6 @@ public:
         gfx->Device->CreateBuffer(&bd, nullptr, &CB);
     }
 
-    // 텍스처를 연결하면 tintColor 를 흰색(중립)으로 자동 변경
     void SetTexture(ID3D11ShaderResourceView* srv)
     {
         TexSRV = srv;
@@ -509,7 +544,7 @@ public:
     float Rot = 0.0f;
     Vec2  Scale = { 1, 1 };
     bool  Active = true;
-    bool Visible = true; //Vanishing용
+    bool  Visible = true;
 
     std::vector<Component*> Components;
 
@@ -597,9 +632,9 @@ public:
 class Camera
 {
 public:
-    Vec2  Pos = { 0, 0 };
-    float ViewW = 0;
-    float ViewH = 0;
+    Vec2          Pos = { 0, 0 };
+    float         ViewW = 0;
+    float         ViewH = 0;
     ID3D11Buffer* CB = nullptr;
 
     void Init(GraphicsContext* gfx, int w, int h)
@@ -639,8 +674,6 @@ public:
 
 // ============================================================
 //  PlatformComp
-//  ─ AABB 를 GameObject 의 Pos/Scale 에서 계산합니다.
-//    이렇게 하면 나중에 플랫폼을 움직여도 충돌이 따라옵니다.
 // ============================================================
 class PlatformComp : public Component
 {
@@ -668,60 +701,41 @@ public:
     // 플레이어가 한번 밟았는지
     bool Triggered = false;
 
+
     PlatformComp(PlatformType t) : Type(t) {}
 
-    // Moving platform용
     void Start(GraphicsContext* gfx) override
     {
-      // 시작 위치 저장
-      StartPos = Owner->Pos;
+        StartPos = Owner->Pos;
     }
 
     void Update(float dt) override
     {
-      // ─────────────────────────────
-      // Vanishing 플랫폼
-      // ─────────────────────────────
-      if (Type == PlatformType::Vanishing)
-      {
-        // 한번 밟힌 이후 타이머 진행
-        if (Triggered)
+        if (Type == PlatformType::Vanishing)
         {
-          Timer += dt;
-
-          // 3초 후 사라짐
-          if (Timer >= 3.0f && IsActive)
-          {
-            IsActive = false;
-
-            // 화면에서도 숨김
-            Owner->Visible = false;
-          }
-
-          // 5초 후 다시 생성
-          if (Timer >= 5.0f)
-          {
-            IsActive = true;
-            Owner->Visible = true;
-
-            Triggered = false;
-            Timer = 0.0f;
-          }
+            if (Triggered)
+            {
+                Timer += dt;
+                if (Timer >= 3.0f && IsActive)
+                {
+                    IsActive = false;
+                    Owner->Visible = false;
+                }
+                if (Timer >= 5.0f)
+                {
+                    IsActive = true;
+                    Owner->Visible = true;
+                    Triggered = false;
+                    Timer = 0.0f;
+                }
+            }
         }
-      }
 
-      // ─────────────────────────────
-      // Moving 플랫폼
-      // ─────────────────────────────
-      if (Type == PlatformType::Moving)
-      {
-        // 시간 증가
-        MoveTimer += dt * MoveSpeed;
-
-        // sin 기반 좌우 왕복 이동
-        Owner->Pos.x =
-          StartPos.x + sinf(MoveTimer) * MoveRange;
-      }
+        if (Type == PlatformType::Moving)
+        {
+            MoveTimer += dt * MoveSpeed;
+            Owner->Pos.x = StartPos.x + sinf(MoveTimer) * MoveRange;
+        }
     }
 
     AABB GetAABB() const
@@ -738,11 +752,105 @@ public:
 };
 
 // ============================================================
+//  아이템 효과 상태  (PlayerController 전방 선언 필요)
+// ============================================================
+struct PlayerItemState
+{
+    bool  FlyActive = false;
+    float FlyTimer = 0.0f;
+
+    bool  PassThroughActive = false;
+    float PassThroughTimer = 0.0f;
+
+    bool  ShieldActive = false;
+    float ShieldTimer = 0.0f;
+
+    bool  CheckpointSet = false;
+    Vec2  CheckpointPos = { 0, 0 };
+
+    void Apply(ItemType type, PlayerController* pc);
+    void Update(float dt, PlayerController* pc);
+};
+
+// ============================================================
+//  룰렛 상태
+//  ★ 아이템 추가 시 Items[], ITEM_COUNT 수정
+// ============================================================
+struct RouletteState
+{
+    static constexpr int ITEM_COUNT = 4;
+    ItemType Items[ITEM_COUNT] = {
+        ItemType::Fly,
+        ItemType::PassThrough,
+        ItemType::Shield,
+        ItemType::Checkpoint
+    };
+
+    bool  Active = false;
+    float Timer = 0.0f;
+    float FlipTimer = 0.0f;
+    int   CurrentSlot = 0;
+    int   ResultSlot = -1;
+    bool  ShowResult = false;
+    float ShowResultTimer = 0.0f;
+    static constexpr float SHOW_RESULT_DURATION = 1.0f;
+
+    bool IsRunning() const { return Active || ShowResult; }
+
+    void Start()
+    {
+        Active = true;
+        Timer = ROULETTE_DURATION;
+        FlipTimer = ROULETTE_INTERVAL_MIN;
+        CurrentSlot = rand() % ITEM_COUNT;
+        ResultSlot = rand() % ITEM_COUNT;
+        ShowResult = false;
+        ShowResultTimer = 0.0f;
+    }
+
+    bool Update(float dt)
+    {
+        if (!Active)
+        {
+            if (ShowResult)
+            {
+                ShowResultTimer -= dt;
+                if (ShowResultTimer <= 0.0f)
+                {
+                    ShowResult = false; ShowResultTimer = 0.0f; return true;
+                }
+            }
+            return false;
+        }
+        Timer -= dt; FlipTimer -= dt;
+        if (FlipTimer <= 0.0f)
+        {
+            CurrentSlot = (CurrentSlot + 1) % ITEM_COUNT;
+            float prog = 1.0f - max(0.0f, Timer / ROULETTE_DURATION);
+            FlipTimer = ROULETTE_INTERVAL_MIN
+                + (ROULETTE_INTERVAL_MAX - ROULETTE_INTERVAL_MIN) * prog;
+        }
+        if (Timer <= 0.0f)
+        {
+            CurrentSlot = ResultSlot;
+            Active = false;
+            ShowResult = true;
+            ShowResultTimer = SHOW_RESULT_DURATION;
+        }
+        return false;
+    }
+
+    ItemType GetCurrent() const { return Items[CurrentSlot]; }
+    ItemType GetResult()  const { return Items[ResultSlot]; }
+    float ShowResultScale() const
+    {
+        float t = 1.0f - ShowResultTimer / SHOW_RESULT_DURATION;
+        return 1.0f + 0.5f * sinf(t * 3.14159f);
+    }
+};
+
+// ============================================================
 //  PlayerController
-//  ─ Platforms 포인터를 외부에서 주입받습니다 (전역 제거).
-//  ─ 이동 처리를 UpdateMovement() 로 분리했습니다.
-//    점프 충전 중 이동 차단은 타입과 무관하게 1단계에서 처리되므로
-//    새 타입을 추가해도 이 동작은 자동으로 적용됩니다.
 // ============================================================
 
 /*
@@ -760,6 +868,8 @@ class PlayerController : public Component
 public:
     // ── 외부 주입 ──
     std::vector<GameObject*>* Platforms = nullptr;
+    PlayerItemState* ItemState = nullptr;
+    GameObject* CheckpointFlag = nullptr;
 
     // ── 물리 상태 ──
     Vec2  Vel = { 0, 0 };
@@ -774,12 +884,12 @@ public:
     float JumpCharge = 0.0f;
     bool  JumpedThisPress = false;
 
-    // ── 고급 조작감 타이머 (플랫포머 필수 기술) ──
-    float CoyoteTimer = 0.0f;        // 코요테 타임 
-    float JumpBufferTimer = 0.0f;    // 점프 버퍼링 
-    float CurrentShakeX = 0.0f;      // 흔들림 연출 누적 방지용 변수
+    // ── 고급 조작감 타이머 ──
+    float CoyoteTimer = 0.0f;
+    float JumpBufferTimer = 0.0f;
+    float CurrentShakeX = 0.0f;
 
-    // ── 점프킹 특화 상태 (조작 불가) ──
+    // ── 점프킹 특화 상태 ──
     bool  IsStunned = false;
 
     // ── 입력 ──
@@ -791,14 +901,26 @@ public:
     bool IsReverse() const { return ReverseTimer > 0.0f; }
 
     // ── 튕김(Bounce) 설정 ──
-    float BounceFactor = 0.85f;   // 튕길 때 보존되는 속도 비율 
-    float MinBounceSpeed = 3.0f;  // 살짝 부딪혀도 무조건 튕겨나가는 최소 속도
+    float BounceFactor = 0.85f;
+    float MinBounceSpeed = 3.0f;
 
-    // ── 개발 도구 ──
-    bool  FlyMode = false;
+    // ── 비행 모드 ──
+    bool FlyMode = false;   // DevFly (F키)
+    bool item_flymode = false;   // 아이템 Fly
+
+    // ── 체크포인트 ──
     Vec2  Checkpoint = { 0, 0.5f };
 
-    // ── 엣지 감지 ──
+    // ── 룰렛 ──
+    RouletteState Roulette;
+
+    // ── 플레이어 상태별 머티리얼 (외부 주입) ──
+    ColorMaterial* MatNormal = nullptr;
+    ColorMaterial* MatFly = nullptr;
+    ColorMaterial* MatPassThrough = nullptr;
+    ColorMaterial* MatShield = nullptr;
+
+    // ── 입력 엣지 감지 ──
     bool PrevF = false, PrevR = false, PrevC = false;
 
     // ────────────────────────────────────────────────────────
@@ -824,6 +946,7 @@ public:
         }
         if (rNow && !PrevR)
         {
+            if (CheckpointFlag) CheckpointFlag->Active = false;
             Owner->Pos = Checkpoint; Vel = { 0, 0 };
             printf("[Dev] Reset (%.2f, %.2f)\n", Checkpoint.x, Checkpoint.y);
         }
@@ -839,15 +962,47 @@ public:
     // ────────────────────────────────────────────────────────
     void Update(float dt) override
     {
-        if (FlyMode) { UpdateFly(dt); return; }
+        // ── 아이템 효과 갱신 ──
+        if (ItemState) ItemState->Update(dt, this);
+
+        // ── 룰렛 갱신 ──
+        if (Roulette.IsRunning())
+        {
+            bool done = Roulette.Update(dt);
+            if (done && ItemState)
+            {
+                ItemType result = Roulette.GetResult();
+                printf("[RandomBox] 확정: type=%d → 즉시 발동\n", (int)result);
+                ItemState->Apply(result, this);
+            }
+        }
+
+        // ── 머티리얼 전환 ──
+        if (MatNormal)
+        {
+            auto* mr = Owner->GetComponent<MeshRenderer>();
+            if (mr)
+            {
+                if (ItemState && ItemState->FlyActive)         mr->pMat = MatFly;
+                else if (ItemState && ItemState->PassThroughActive) mr->pMat = MatPassThrough;
+                else if (ItemState && ItemState->ShieldActive)      mr->pMat = MatShield;
+                else                                                 mr->pMat = MatNormal;
+            }
+        }
+
+        // ── Fly 아이템 발동 중이면 FlyMode 강제 ON ──
+        if (ItemState && ItemState->FlyActive) FlyMode = true;
+
+        if (FlyMode)
+        {
+            UpdateFly(dt);
+            if (item_flymode) ResolveAllCollisions(dt);
+            return;
+        }
 
         Vel.y += GRAVITY * dt;
 
-        // Reverse 효과 시간 감소
-        if (ReverseTimer > 0.0f)
-        {
-          ReverseTimer -= dt;
-        }
+        if (ReverseTimer > 0.0f) ReverseTimer -= dt;
 
         UpdateMovement(dt);
         UpdateJump(dt);
@@ -856,10 +1011,8 @@ public:
         Owner->Pos.x += Vel.x * dt;
         Owner->Pos.y += Vel.y * dt;
 
-        // 충돌 해결 (흔들림 없이 정직하게 계산하므로 버그 없음)
         ResolveAllCollisions(dt);
 
-        // ── ★ 오직 Render 컴포넌트가 참고할 흔들림 수치만 계산 ──
         if (OnGround && JumpCharge > 0.05f)
         {
             float shakeIntensity = (JumpCharge * JumpCharge) * 0.25f;
@@ -871,22 +1024,14 @@ public:
             CurrentShakeX = 0.0f;
         }
 
-        // 공중에서 캐릭터가 회전하는 물리 연출
-        if (!OnGround)
-        {
-            Owner->Rot -= Vel.x * 3.0f * dt;
-        }
-        else
-        {
-            Owner->Rot += (0.0f - Owner->Rot) * 15.0f * dt;
-        }
+        if (!OnGround) Owner->Rot -= Vel.x * 3.0f * dt;
+        else           Owner->Rot += (0.0f - Owner->Rot) * 15.0f * dt;
     }
 
 private:
-    // ── 수평 이동 (캐릭터가 점프 시 공중에서도 좌우 이동 가능하게 구현) ─────────────────────────
+    // ── 수평 이동 ────────────────────────────────────────────
     void UpdateMovement(float dt)
     {
-        // 지면에서 점프 충전 중일 때는 좌우 이동을 완벽 차단하고 브레이크
         if (SpaceHeld && OnGround && !IsStunned)
         {
             if (OnIce) Vel.x *= (1.0f - ICE_DRAG * dt);
@@ -907,24 +1052,18 @@ private:
             }
             else if (IsReverse())
             {
-              // 입력 반전
-              float reverseInput = IsReverse() ? -MoveInput : MoveInput;
-
-              if (reverseInput != 0.0f && !IsStunned)
-              {
-                Vel.x += reverseInput * GROUND_ACCEL * dt;
-
-                Vel.x = max(-MOVE_SPEED, min(MOVE_SPEED, Vel.x));
-              }
-              else
-              {
-                float decel = GROUND_DECEL * dt;
-
-                if (Vel.x > 0)
-                  Vel.x = max(0.0f, Vel.x - decel);
+                float reverseInput = -MoveInput;
+                if (reverseInput != 0.0f && !IsStunned)
+                {
+                    Vel.x += reverseInput * GROUND_ACCEL * dt;
+                    Vel.x = max(-MOVE_SPEED, min(MOVE_SPEED, Vel.x));
+                }
                 else
-                  Vel.x = min(0.0f, Vel.x + decel);
-              }
+                {
+                    float decel = GROUND_DECEL * dt;
+                    if (Vel.x > 0) Vel.x = max(0.0f, Vel.x - decel);
+                    else           Vel.x = min(0.0f, Vel.x + decel);
+                }
             }
             else
             {
@@ -943,84 +1082,67 @@ private:
         }
         else
         {
-          // 공중 상태 조작 가능
-          if (IsStunned)
-            return;
+            if (IsStunned) return;
 
-          float airAccel = 12.0f;
-          float airDecel = 2.0f;
+            float airAccel = 12.0f;
+            float airDecel = 2.0f;
 
-          // Reverse 상태면 공중 이동도 반전
-          float input =
-            IsReverse() ? -MoveInput : MoveInput;
+            float input = IsReverse() ? -MoveInput : MoveInput;
 
-          if (input != 0.0f)
-          {
-            Vel.x += input * airAccel * dt;
-
-            Vel.x = max(-MOVE_SPEED, min(MOVE_SPEED, Vel.x));
-          }
-          else
-          {
-            if (Vel.x > 0)
-              Vel.x = max(0.0f, Vel.x - airDecel * dt);
+            if (input != 0.0f)
+            {
+                Vel.x += input * airAccel * dt;
+                Vel.x = max(-MOVE_SPEED, min(MOVE_SPEED, Vel.x));
+            }
             else
-              Vel.x = min(0.0f, Vel.x + airDecel * dt);
-          }
+            {
+                if (Vel.x > 0) Vel.x = max(0.0f, Vel.x - airDecel * dt);
+                else           Vel.x = min(0.0f, Vel.x + airDecel * dt);
+            }
         }
     }
 
-    // ── 점프 (코요테 타임 & 버퍼링 적용) ────────────────────────
+    // ── 점프 (코요테 타임 & 버퍼링 적용) ────────────────────
     void UpdateJump(float dt)
     {
-        // 1. 코요테 타임 업데이트 (발이 허공에 떠도 0.1초간 점프 가능)
         if (OnGround) CoyoteTimer = 0.1f;
         else if (CoyoteTimer > 0.0f) CoyoteTimer -= dt;
 
-        // 2. 점프 버퍼링 업데이트 (착지 직전 0.15초 내의 스페이스바 입력을 저장)
         if (SpacePressedThisFrame) JumpBufferTimer = 0.15f;
         else if (JumpBufferTimer > 0.0f) JumpBufferTimer -= dt;
 
-        // 코요테 타임 유예 기간이 남아있다면 공중이라도 점프 가능 상태로 취급
         bool canJump = (OnGround || CoyoteTimer > 0.0f) && !IsStunned;
 
         if (canJump)
         {
-            // 충전 시작 (눌러서 충전하거나, 공중 버퍼링 타이머가 살아있을 때)
             if ((SpaceHeld || JumpBufferTimer > 0.0f) && !JumpedThisPress)
-            {
                 JumpCharge = min(JumpCharge + JUMP_CHARGE * dt, 1.0f);
-            }
 
-            // 발사 (스페이스바를 떼는 순간 충전된 양만큼 튀어오름)
             if (!SpaceHeld && JumpCharge > 0.0f)
             {
                 float speed = JUMP_MIN + (JUMP_MAX - JUMP_MIN) * JumpCharge;
                 Vel.y = speed;
 
-                // [공중 제어 대응] 점프 순간 기존 달리기 관성을 지우고 입력 방향으로 발사
-                Vel.x = MoveInput * MOVE_SPEED;
-
-                // Reverse 플랫폼이면 점프 방향도 반전
                 float jumpInput = IsReverse() ? -MoveInput : MoveInput;
-
                 Vel.x = jumpInput * MOVE_SPEED;
 
                 JumpCharge = 0.0f;
                 JumpedThisPress = true;
                 OnGround = false;
 
-                CoyoteTimer = 0.0f;      // 점프를 뜄으므로 유예 시간 소모
-                JumpBufferTimer = 0.0f;  // 예약된 점프 처리 완료
+                CoyoteTimer = 0.0f;
+                JumpBufferTimer = 0.0f;
             }
         }
         else
         {
+            // ★ 수정: 공중으로 떨어지는 순간 차징값 즉시 초기화
+            JumpCharge = 0.0f;
             if (!SpaceHeld) JumpedThisPress = false;
         }
     }
 
-    // ── 충돌 해결 (점프킹 스타일 핀볼 연쇄 반사) ─────────────────────────
+    // ── 충돌 해결 ────────────────────────────────────────────
     void ResolveAllCollisions(float dt)
     {
         OnGround = false;
@@ -1039,61 +1161,71 @@ private:
         AABB player = GetAABB();
         AABB platform = plat->GetAABB();
 
-        // 비활성 플랫폼은 충돌 무시
         if (!plat->IsActive) return;
-
         if (!player.Overlaps(platform)) return;
 
-        // 투과 플랫폼(PassThrough) 특수 예외 처리
-        if (plat->Type == PlatformType::PassThrough)
+        bool shielded = (ItemState && ItemState->ShieldActive);
+
+        // ── PassThrough 플랫폼 타입 OR 아이템 PassThrough ──
+        if (plat->Type == PlatformType::PassThrough ||
+            (ItemState && ItemState->PassThroughActive))
         {
             float penetrationY = platform.top - player.bottom;
-
-            // X축 가장자리 낌 (무한 로딩 렉) 방지를 위한 가로 마진 검사
             float marginX = HalfW * 0.5f;
-            bool isWithinX = (player.right - marginX > platform.left) &&
+            bool  isWithinX = (player.right - marginX > platform.left) &&
                 (player.left + marginX < platform.right);
-
-            // 안전 범위 안이고 떨어지는 중일 때만 발판 안착
-            if (isWithinX && Vel.y <= 0.0f && penetrationY > 0.0f && penetrationY <= max(0.2f, -Vel.y * dt * 2.0f))
+            if (isWithinX && Vel.y <= 0.0f && penetrationY > 0.0f &&
+                penetrationY <= max(0.2f, -Vel.y * dt * 2.0f))
             {
                 Owner->Pos.y = platform.top + HalfH;
                 Vel.y = 0;
                 OnGround = true;
-
-                // PassThrough 착지 시 Reverse 해제
                 ReverseTimer = 0.0f;
+            }
+            if (ItemState && ItemState->PassThroughActive) {
+                if (shielded) return;
+
+                if (plat->Type == PlatformType::Ice) OnIce = true;
+
+                if (plat->Type == PlatformType::Reverse)
+                    ReverseTimer = 2.0f;
+                else
+                    ReverseTimer = 0.0f;
+
+                if (plat->Type == PlatformType::Vanishing)
+                    plat->Triggered = true;
             }
             return;
         }
 
-        // 일반 및 얼음 발판 충돌 해결 (연쇄 튕김 극대화 버전)
         float oL = player.right - platform.left;
         float oR = platform.right - player.left;
         float oB = player.top - platform.bottom;
         float oT = platform.top - player.bottom;
-
         float minO = min(min(oL, oR), min(oB, oT));
 
-        // 점프킹의 하드코어한 연쇄 튕김을 구현하기 위한 탄성 수치
-        const float HORIZONTAL_BOUNCE = 1.3f; // 벽에 박으면 박은 속도보다 1.3배 더 강하게 반사(도핑)하여 핀볼 효과 극대화
 
-        // 공중에서 속도가 붙은 채로 벽 옆구리에 스치면 무조건 벽 반사 판정을 수직 판정보다 우선함
-        bool hitSideWall = (minO == oL || minO == oR) || (abs(Vel.x) > 1.0f && minO != oT);
+
+        const float HORIZONTAL_BOUNCE = 1.3f;
+
+        // 수정: minO != oB 조건 추가 (2번 코드 기준)
+        bool hitSideWall = (minO == oL || minO == oR) ||
+            (abs(Vel.x) > 1.0f && minO != oT && minO != oB);
 
         if (hitSideWall && !OnGround)
         {
-            if (oL < oR) // 왼쪽 벽 옆구리 박음 (오른쪽 이동 중)
+
+            if (oL < oR)
             {
                 Owner->Pos.x = platform.left - HalfW;
                 if (Vel.x >= 0.0f)
                 {
                     float speed = max(MinBounceSpeed, Vel.x);
-                    Vel.x = -speed * HORIZONTAL_BOUNCE; // 반대편 허공으로 팍 튕겨나감
-                    if (Vel.y > 0.0f) Vel.y *= 0.6f;    // 상승력이 꺾여 대각선 아래로 통통 떨어지도록 유도
+                    Vel.x = -speed * HORIZONTAL_BOUNCE;
+                    if (Vel.y > 0.0f) Vel.y *= 0.6f;
                 }
             }
-            else // 오른쪽 벽 옆구리 박음 (왼쪽 이동 중)
+            else
             {
                 Owner->Pos.x = platform.right + HalfW;
                 if (Vel.x <= 0.0f)
@@ -1106,38 +1238,29 @@ private:
         }
         else
         {
-            // 상하 수직 충돌 해결
             if (minO == oT)
             {
-                // [지면 착지]
                 if (Vel.y <= 0.0f)
                 {
                     Owner->Pos.y = platform.top + HalfH;
                     Vel.y = 0;
                     OnGround = true;
-                    if (plat->Type == PlatformType::Ice) OnIce = true;
-                    
-                    // Reverse 플랫폼 밟으면 2초간 반전
-                    if (plat->Type == PlatformType::Reverse)
-                    {
-                      ReverseTimer = 2.0f;
-                    }
-                    else
-                    {
-                      // 다른 플랫폼 밟으면 Reverse 해제
-                      ReverseTimer = 0.0f;
-                    }
 
-                    // Vanishing 플랫폼이면 타이머 시작
+                    if (shielded) return;
+
+                    if (plat->Type == PlatformType::Ice) OnIce = true;
+
+                    if (plat->Type == PlatformType::Reverse)
+                        ReverseTimer = 2.0f;
+                    else
+                        ReverseTimer = 0.0f;
+
                     if (plat->Type == PlatformType::Vanishing)
-                    {
-                      plat->Triggered = true;
-                    }
+                        plat->Triggered = true;
                 }
             }
             else if (minO == oB)
             {
-                // [천장 박음] 쿵 하고 아래로 정직하게 바운스 처리 (선언해두신 BounceFactor 멤버 활용)
                 Owner->Pos.y = platform.bottom - HalfH;
                 if (Vel.y > 0.0f) Vel.y = -Vel.y * BounceFactor;
             }
@@ -1151,8 +1274,18 @@ private:
         if (GetAsyncKeyState(VK_RIGHT) & 0x8000) dir.x += 1.0f;
         if (GetAsyncKeyState(VK_UP) & 0x8000) dir.y += 1.0f;
         if (GetAsyncKeyState(VK_DOWN) & 0x8000) dir.y -= 1.0f;
-        Owner->Pos.x += dir.x * FLY_SPEED * dt;
-        Owner->Pos.y += dir.y * FLY_SPEED * dt;
+
+
+        if (item_flymode) {
+            Owner->Pos.x += dir.x * FLY_ITEM_SPEED * dt;
+            Owner->Pos.y += dir.y * FLY_ITEM_SPEED * dt;
+        }
+        else {
+            Owner->Pos.x += dir.x * FLY_SPEED * dt;
+            Owner->Pos.y += dir.y * FLY_SPEED * dt;
+        }
+
+
         Vel = { 0, 0 };
         IsStunned = false;
     }
@@ -1165,6 +1298,88 @@ private:
         };
     }
 };
+
+// ============================================================
+//  PlayerItemState 구현 (PlayerController 정의 이후)
+// ============================================================
+inline void PlayerItemState::Apply(ItemType type, PlayerController* pc)
+{
+    switch (type)
+    {
+    case ItemType::Fly:
+        pc->JumpCharge = 0.0f;
+        FlyActive = true;
+        FlyTimer = ITEM_FLY_DURATION;
+        pc->FlyMode = true;
+        pc->Vel = { 0, 0 };
+        pc->item_flymode = true;
+        printf("[Item] Fly 발동 %.1fs\n", ITEM_FLY_DURATION);
+        break;
+
+    case ItemType::PassThrough:
+        PassThroughActive = true;
+        PassThroughTimer = ITEM_PASSTHROUGH_DURATION;
+        printf("[Item] PassThrough 발동 %.1fs\n", ITEM_PASSTHROUGH_DURATION);
+        break;
+
+    case ItemType::Shield:
+        ShieldActive = true;
+        ShieldTimer = ITEM_SHIELD_DURATION;
+        printf("[Item] Shield 발동 %.1fs\n", ITEM_SHIELD_DURATION);
+        break;
+
+    case ItemType::Checkpoint:
+        CheckpointSet = true;
+        CheckpointPos = pc->Owner->Pos;
+        pc->Checkpoint = pc->Owner->Pos;
+        if (pc->CheckpointFlag)
+        {
+            pc->CheckpointFlag->Active = true;
+            pc->CheckpointFlag->Pos = { pc->Owner->Pos.x, pc->Owner->Pos.y - 0.1f };
+        }
+        printf("[Item] Checkpoint 설치 (%.2f, %.2f)\n", CheckpointPos.x, CheckpointPos.y);
+        break;
+
+    default: break;
+    }
+}
+
+inline void PlayerItemState::Update(float dt, PlayerController* pc)
+{
+    if (FlyActive)
+    {
+        FlyTimer -= dt;
+        if (FlyTimer <= 0.0f)
+        {
+            FlyActive = false;
+            FlyTimer = 0.0f;
+            pc->FlyMode = false;
+            pc->Vel = { 0, 0 };
+            pc->item_flymode = false;
+            printf("[Item] Fly 종료\n");
+        }
+    }
+    if (PassThroughActive)
+    {
+        PassThroughTimer -= dt;
+        if (PassThroughTimer <= 0.0f)
+        {
+            PassThroughActive = false;
+            PassThroughTimer = 0.0f;
+            printf("[Item] PassThrough 종료\n");
+        }
+    }
+    if (ShieldActive)
+    {
+        ShieldTimer -= dt;
+        if (ShieldTimer <= 0.0f)
+        {
+            ShieldActive = false;
+            ShieldTimer = 0.0f;
+            printf("[Item] Shield 종료\n");
+        }
+    }
+}
 
 // ============================================================
 //  JumpChargeBar  ─  충전량 시각화
@@ -1211,6 +1426,193 @@ public:
 
 
 // ============================================================
+//  ActiveItemBar  ─  발동 중 아이템 잔여시간 바 (플레이어 위)
+// ============================================================
+class ActiveItemBar : public Component
+{
+    Mesh* pMesh = nullptr;
+    ID3D11Buffer* CB = nullptr;
+public:
+    static constexpr int BAR_COUNT = 4;
+    ColorMaterial* MatBars[BAR_COUNT] = {};
+
+    ActiveItemBar(Mesh* m) : pMesh(m) {}
+
+    void Start(GraphicsContext* gfx) override
+    {
+        D3D11_BUFFER_DESC bd = {};
+        bd.Usage = D3D11_USAGE_DEFAULT;
+        bd.ByteWidth = sizeof(CbWorld);
+        bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+        gfx->Device->CreateBuffer(&bd, nullptr, &CB);
+    }
+
+    void Render(GraphicsContext* gfx) override
+    {
+        auto* pc = Owner->GetComponent<PlayerController>();
+        if (!pc || !pc->ItemState || !CB) return;
+        auto* is = pc->ItemState;
+
+        float startY = Owner->Pos.y + 0.55f;
+        int   row = 0;
+
+        if (is->FlyActive && MatBars[0])
+        {
+            DrawBar(gfx, MatBars[0], Owner->Pos.x, startY + row * 0.10f,
+                is->FlyTimer / ITEM_FLY_DURATION); ++row;
+        }
+        if (is->PassThroughActive && MatBars[1])
+        {
+            DrawBar(gfx, MatBars[1], Owner->Pos.x, startY + row * 0.10f,
+                is->PassThroughTimer / ITEM_PASSTHROUGH_DURATION); ++row;
+        }
+        if (is->ShieldActive && MatBars[2])
+        {
+            DrawBar(gfx, MatBars[2], Owner->Pos.x, startY + row * 0.10f,
+                is->ShieldTimer / ITEM_SHIELD_DURATION); ++row;
+        }
+    }
+
+private:
+    void DrawBar(GraphicsContext* gfx, ColorMaterial* mat,
+        float cx, float cy, float ratio)
+    {
+        if (ratio <= 0.0f) return;
+        float w = 0.6f * ratio;
+        mat->Bind(gfx);
+        XMMATRIX world = XMMatrixScaling(w, 0.06f, 1.0f)
+            * XMMatrixTranslation(cx - (0.6f - w) * 0.5f, cy, 0.0f);
+        CbWorld cb = { XMMatrixTranspose(world) };
+        gfx->Context->UpdateSubresource(CB, 0, nullptr, &cb, 0, 0);
+        gfx->Context->VSSetConstantBuffers(0, 1, &CB);
+        UINT stride = sizeof(Vertex), offset = 0;
+        gfx->Context->IASetVertexBuffers(0, 1, &pMesh->VB, &stride, &offset);
+        gfx->Context->Draw(pMesh->Count, 0);
+    }
+
+    ~ActiveItemBar() override { if (CB) CB->Release(); }
+};
+
+// ============================================================
+//  RouletteUI  ─  룰렛 아이콘 (플레이어 머리 위)
+// ============================================================
+class RouletteUI : public Component
+{
+public:
+    ColorMaterial* MatIcon[RouletteState::ITEM_COUNT] = {};
+    Mesh* pQuad = nullptr;
+    ID3D11Buffer* CB = nullptr;
+    float          IconSize = 0.5f;
+    float          OffsetY = 0.7f;
+
+    void Start(GraphicsContext* gfx) override
+    {
+        D3D11_BUFFER_DESC bd = {};
+        bd.Usage = D3D11_USAGE_DEFAULT;
+        bd.ByteWidth = sizeof(CbWorld);
+        bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+        gfx->Device->CreateBuffer(&bd, nullptr, &CB);
+    }
+
+    void Render(GraphicsContext* gfx) override
+    {
+        auto* pc = Owner->GetComponent<PlayerController>();
+        if (!pc) return;
+        if (!pc->Roulette.Active && !pc->Roulette.ShowResult) return;
+
+        int   idx = pc->Roulette.CurrentSlot;
+        float scl = pc->Roulette.ShowResult ? pc->Roulette.ShowResultScale() : 1.0f;
+        auto* mat = (idx >= 0 && idx < RouletteState::ITEM_COUNT) ? MatIcon[idx] : nullptr;
+        if (!mat || !pQuad || !CB) return;
+
+        mat->Bind(gfx);
+        float size = IconSize * scl;
+        XMMATRIX world = XMMatrixScaling(size, size, 1.0f)
+            * XMMatrixTranslation(Owner->Pos.x,
+                Owner->Pos.y + Owner->Scale.y * 0.5f + OffsetY, 0.0f);
+        CbWorld cb = { XMMatrixTranspose(world) };
+        gfx->Context->UpdateSubresource(CB, 0, nullptr, &cb, 0, 0);
+        gfx->Context->VSSetConstantBuffers(0, 1, &CB);
+        UINT stride = sizeof(Vertex), offset = 0;
+        gfx->Context->IASetVertexBuffers(0, 1, &pQuad->VB, &stride, &offset);
+        gfx->Context->Draw(pQuad->Count, 0);
+    }
+
+    ~RouletteUI() override { if (CB) CB->Release(); }
+};
+
+// ============================================================
+//  CheckpointFlagRenderer  ─  깃대 + 깃발 렌더링
+// ============================================================
+class CheckpointFlagRenderer : public Component
+{
+    ID3D11Buffer* CB = nullptr;
+public:
+    Mesh* MastMesh = nullptr;
+    Mesh* FlagMesh = nullptr;
+    ColorMaterial* MatMast = nullptr;
+    ColorMaterial* MatFlag = nullptr;
+
+    void Start(GraphicsContext* gfx) override
+    {
+        D3D11_BUFFER_DESC bd = {};
+        bd.Usage = D3D11_USAGE_DEFAULT;
+        bd.ByteWidth = sizeof(CbWorld);
+        bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+        gfx->Device->CreateBuffer(&bd, nullptr, &CB);
+    }
+
+    void DrawQuad(GraphicsContext* gfx, ColorMaterial* mat, Mesh* mesh,
+        float cx, float cy, float w, float h, float rot = 0.0f)
+    {
+        if (!mat || !mesh || !CB) return;
+        mat->Bind(gfx);
+        XMMATRIX world = XMMatrixScaling(w, h, 1.0f)
+            * XMMatrixRotationZ(rot)
+            * XMMatrixTranslation(cx, cy, 0.0f);
+        CbWorld cb = { XMMatrixTranspose(world) };
+        gfx->Context->UpdateSubresource(CB, 0, nullptr, &cb, 0, 0);
+        gfx->Context->VSSetConstantBuffers(0, 1, &CB);
+        UINT stride = sizeof(Vertex), offset = 0;
+        gfx->Context->IASetVertexBuffers(0, 1, &mesh->VB, &stride, &offset);
+        gfx->Context->Draw(mesh->Count, 0);
+    }
+
+    void Render(GraphicsContext* gfx) override
+    {
+        DrawQuad(gfx, MatMast, MastMesh, Owner->Pos.x, Owner->Pos.y, 0.06f, 0.5f);
+        DrawQuad(gfx, MatFlag, FlagMesh, Owner->Pos.x + 0.15f, Owner->Pos.y + 0.1f, 0.3f, 0.22f);
+    }
+
+    ~CheckpointFlagRenderer() override { if (CB) CB->Release(); }
+};
+
+// ============================================================
+//  RandomBoxComp  ─  접촉 시 사라지고 룰렛 시작
+// ============================================================
+class RandomBoxComp : public Component
+{
+public:
+    bool              Picked = false;
+    GameObject* Player = nullptr;
+    PlayerController* PC = nullptr;
+
+    void Update(float dt) override
+    {
+        if (Picked || !Player || !PC) return;
+        float dx = Owner->Pos.x - Player->Pos.x;
+        float dy = Owner->Pos.y - Player->Pos.y;
+        if (sqrtf(dx * dx + dy * dy) < ITEM_PICKUP_RADIUS)
+        {
+            Picked = true;
+            Owner->Active = false;
+            PC->Roulette.Start();
+            printf("[RandomBox] 룰렛 시작!\n");
+        }
+    }
+};
+
+// ============================================================
 //  GameLoop
 // ============================================================
 class GameLoop
@@ -1225,33 +1627,57 @@ public:
 
     std::vector<GameObject*> World;
     std::vector<GameObject*> Platforms;
+    std::vector<GameObject*> RandomBoxes;
+
+    GameObject* FlagObject = nullptr;
+    PlayerItemState  ItemStateData;
 
     // ── 공유 GPU 리소스 ──
     ShaderSet      DefaultShaders;
-    Mesh* QuadMesh = nullptr;   // 단위 쿼드 [-0.5, 0.5]
-    Mesh* BarMesh = nullptr;   // 충전 바 쿼드 [0, 1]
+    Mesh* QuadMesh = nullptr;
+    Mesh* BarMesh = nullptr;
 
-    // ── 플레이어 전용 머티리얼 (GameLoop 소유) ──
+    // ── 플레이어 머티리얼 ──
     ColorMaterial* MatPlayer = nullptr;
+    ColorMaterial* MatPlayerFly = nullptr;
+    ColorMaterial* MatPlayerPT = nullptr;
+    ColorMaterial* MatPlayerShld = nullptr;
     ColorMaterial* MatChargeBar = nullptr;
 
-    // ── 플랫폼 머티리얼 목록 (AddPlatform 에서 생성, 여기서 소유) ──
-    std::vector<Material*>   OwnedMaterials;
+    // ── 아이템 효과 바 / 룰렛 아이콘 머티리얼 ──
+    static constexpr int ITEM_MAT_COUNT = 4;
+    ColorMaterial* MatItemBar[ITEM_MAT_COUNT] = {};
+    ColorMaterial* MatRouletteIcon[ITEM_MAT_COUNT] = {};
+
+    // ── 깃발 머티리얼 ──
+    ColorMaterial* MatFlagMast = nullptr;
+    ColorMaterial* MatFlagFlag = nullptr;
+
+    // ── 플랫폼 머티리얼 목록 (GameLoop 소유) ──
+    std::vector<Material*> OwnedMaterials;
 
     bool MousePressed = false;
 
     GameLoop() { printf("[Engine] GameLoop Created.\n"); }
+
     ~GameLoop()
     {
-        for (auto* go : World)     delete go;
-        for (auto* go : Platforms) delete go;
+        for (auto* go : World)       delete go;
+        for (auto* go : Platforms)   delete go;
+        for (auto* go : RandomBoxes) delete go;
+        if (FlagObject) delete FlagObject;
         for (auto* m : OwnedMaterials) delete m;
-        // TexCache 소멸자가 SRV 자동 해제
+        for (int i = 0; i < ITEM_MAT_COUNT; ++i)
+        {
+            delete MatItemBar[i];
+            delete MatRouletteIcon[i];
+        }
+        delete MatFlagMast; delete MatFlagFlag;
         CoUninitialize();
-        delete MatPlayer;
+        delete MatPlayer;    delete MatPlayerFly;
+        delete MatPlayerPT;  delete MatPlayerShld;
         delete MatChargeBar;
-        delete QuadMesh;
-        delete BarMesh;
+        delete QuadMesh;     delete BarMesh;
         DefaultShaders.Release();
         printf("[Engine] All resources released.\n");
     }
@@ -1260,12 +1686,13 @@ public:
     bool Initialize(HINSTANCE hInst,
         LRESULT(CALLBACK* proc)(HWND, UINT, WPARAM, LPARAM))
     {
-        if (!Win.Initialize(hInst, proc))      return false;
+        if (!Win.Initialize(hInst, proc))             return false;
         if (!Gfx.Init(Win.hWnd, SCREEN_W, SCREEN_H)) return false;
 
         Cam.Init(&Gfx, SCREEN_W, SCREEN_H);
         CoInitialize(nullptr);
         TexCache.Init(&Gfx);
+        srand((unsigned)GetTickCount64());
 
         // ── 셰이더 ──
         const char* shaderSrc = R"(
@@ -1306,27 +1733,78 @@ public:
         DefaultShaders = Gfx.CompileShaders(shaderSrc, ied, 3);
 
         // ── 메쉬 ──
-        QuadMesh = new Mesh();
-        QuadMesh->CreateQuad(&Gfx, -0.5f, -0.5f, 0.5f, 0.5f);
-
-        BarMesh = new Mesh();
-        BarMesh->CreateQuad(&Gfx, 0.0f, 0.0f, 1.0f, 1.0f);
+        QuadMesh = new Mesh(); QuadMesh->CreateQuad(&Gfx, -0.5f, -0.5f, 0.5f, 0.5f);
+        BarMesh = new Mesh(); BarMesh->CreateQuad(&Gfx, 0.0f, 0.0f, 1.0f, 1.0f);
 
         // ── 플레이어 머티리얼 ──
         MatPlayer = new ColorMaterial(DefaultShaders, { 0.3f, 0.6f, 1.0f, 1.0f }, &Gfx);
+        MatPlayerFly = new ColorMaterial(DefaultShaders, { 0.3f, 0.8f, 1.0f, 1.0f }, &Gfx);
+        MatPlayerPT = new ColorMaterial(DefaultShaders, { 0.4f, 1.0f, 0.5f, 1.0f }, &Gfx);
+        MatPlayerShld = new ColorMaterial(DefaultShaders, { 1.0f, 0.3f, 0.3f, 1.0f }, &Gfx);
         MatChargeBar = new ColorMaterial(DefaultShaders, { 1.0f, 0.9f, 0.0f, 1.0f }, &Gfx);
 
         auto* playerTex = TexCache.Get(L"player.png");
         if (playerTex) MatPlayer->SetTexture(playerTex);
 
+        auto* srvFly = TexCache.Get(L"player_fly.png");
+        auto* srvPT = TexCache.Get(L"player_passthrough.png");
+        auto* srvShld = TexCache.Get(L"player_shield.png");
+        if (srvFly)  MatPlayerFly->SetTexture(srvFly);
+        if (srvPT)   MatPlayerPT->SetTexture(srvPT);
+        if (srvShld) MatPlayerShld->SetTexture(srvShld);
+
+        // ── 아이템 머티리얼 ──
+        XMFLOAT4 itemColors[ITEM_MAT_COUNT] = {
+            { 0.3f, 0.8f, 1.0f, 1.0f },  // [0] Fly       - 하늘색
+            { 0.4f, 1.0f, 0.5f, 1.0f },  // [1] PassThrough - 초록
+            { 1.0f, 0.3f, 0.3f, 1.0f },  // [2] Shield    - 빨강
+            { 1.0f, 0.9f, 0.2f, 1.0f },  // [3] Checkpoint - 노랑
+        };
+        const wchar_t* itemTex[ITEM_MAT_COUNT] = {
+            L"item_fly.png", L"item_passthrough.png",
+            L"item_shield.png", L"item_checkpoint.png"
+        };
+        for (int i = 0; i < ITEM_MAT_COUNT; ++i)
+        {
+            MatItemBar[i] = new ColorMaterial(DefaultShaders, itemColors[i], &Gfx);
+            MatRouletteIcon[i] = new ColorMaterial(DefaultShaders, itemColors[i], &Gfx);
+            auto* srv = TexCache.Get(itemTex[i]);
+            if (srv)
+            {
+                MatItemBar[i]->SetTexture(srv);
+                MatRouletteIcon[i]->SetTexture(srv);
+            }
+        }
+
+        // ── 깃발 머티리얼 ──
+        MatFlagMast = new ColorMaterial(DefaultShaders, { 0.7f, 0.5f, 0.2f, 1.0f }, &Gfx);
+        MatFlagFlag = new ColorMaterial(DefaultShaders, { 1.0f, 0.2f, 0.2f, 1.0f }, &Gfx);
+        MatFlagMast->SetTexture(TexCache.Get(L"flag_mast.png"));
+        MatFlagFlag->SetTexture(TexCache.Get(L"flag_flag.png"));
+
         BuildMap();
+        BuildRandomBoxes();
+        BuildFlag();
         BuildPlayer();
+
+        // 플레이어 → 랜덤박스에 주입
+        if (!World.empty())
+        {
+            auto* player = World[0];
+            auto* pc = player->GetComponent<PlayerController>();
+            for (auto* go : RandomBoxes)
+            {
+                auto* rb = go->GetComponent<RandomBoxComp>();
+                if (rb) { rb->Player = player; rb->PC = pc; }
+            }
+        }
 
         printf("[Engine] Ready.\n");
         printf("  Arrow L/R : Move\n");
         printf("  Space     : Jump (hold = charge, release = launch)\n");
         printf("  F : Fly   R : Reset   C : Checkpoint   ESC : Quit\n");
         printf("  LClick : Print world coord\n");
+        printf("  [아이템] 하늘=Fly  초록=PassThrough  빨강=Shield  노랑=Checkpoint\n");
         return true;
     }
 
@@ -1354,26 +1832,22 @@ public:
         AddPlatform(PlatformType::Normal, 1.5f, 7.0f, 4.0f, 7.3f, L"ground1.png");
 
         // ── 3층 ──
-        AddPlatform(PlatformType::Normal, -3.5f, 9.0f, -2.0f, 9.2f);
+        AddPlatform(PlatformType::Normal, -3.5f, 9.0f, -2.0f, 9.2f, L"ground1.png");
         AddPlatform(PlatformType::Ice, -0.5f, 9.5f, 1.5f, 9.7f, L"ice1.png");
         AddPlatform(PlatformType::Normal, 2.5f, 10.0f, 4.5f, 10.2f, L"ground1.png");
-        AddPlatform(PlatformType::PassThrough, -1.0f, 11.5f, 1.5f, 11.7f);
+        AddPlatform(PlatformType::Vanishing, -1.0f, 11.5f, 1.5f, 11.7f, L"vanishing1.png");
 
         // ── 4층 ──
-        AddPlatform(PlatformType::Normal, -4.0f, 13.0f, -1.0f, 13.3f);
+        AddPlatform(PlatformType::Reverse, -4.0f, 13.0f, -1.0f, 13.3f, L"reverse1.png");
         AddPlatform(PlatformType::Ice, 0.5f, 13.5f, 3.5f, 13.8f, L"ice1.png");
-        AddPlatform(PlatformType::Normal, -2.0f, 15.5f, 2.0f, 15.8f);
+        AddPlatform(PlatformType::Moving, -2.0f, 15.5f, 2.0f, 15.8f, L"moving1.png");
 
         // ── 꼭대기 ──
-        AddPlatform(PlatformType::Normal, -1.5f, 17.5f, 1.5f, 17.8f);
+        AddPlatform(PlatformType::Normal, -1.5f, 17.5f, 1.5f, 17.8f, L"ground1.png");
     }
 
     // ────────────────────────────────────────────────────────
     //  플랫폼 생성 헬퍼
-    //
-    //  texPath == nullptr → 단색 (타입별 기본 색상)
-    //  texPath 지정 시    → 해당 텍스처 로드 (중복 로드 방지)
-    //
     //  ★ 새 PlatformType 추가 시 switch 에 case 만 추가하면 됩니다.
     // ────────────────────────────────────────────────────────
     void AddPlatform(PlatformType type,
@@ -1385,8 +1859,6 @@ public:
         float cx = (lx + rx) * 0.5f;
         float cy = (by + ty) * 0.5f;
 
-        // ── 타입별 기본 색상
-        // ★ 새 타입 추가 시 case 추가
         XMFLOAT4 color = { 1, 1, 1, 1 };
         switch (type)
         {
@@ -1398,15 +1870,12 @@ public:
         case PlatformType::Moving:      color = { 1.0f, 0.8f, 0.2f, 1.0f }; break;
         }
 
-        // ── 머티리얼 생성 (플랫폼마다 독립)
         auto* mat = new ColorMaterial(DefaultShaders, color, &Gfx);
-        OwnedMaterials.push_back(mat); // GameLoop 가 소유권 관리
+        OwnedMaterials.push_back(mat);
 
-        // ── 텍스처 (없으면 단색 그대로)
         auto* srv = TexCache.Get(texPath);
         if (srv) mat->SetTexture(srv);
 
-        // ── GameObject 조립
         auto* go = new GameObject(cx, cy);
         go->Scale = { w, h };
         go->AddComponent(new MeshRenderer(QuadMesh, mat));
@@ -1415,7 +1884,46 @@ public:
         Platforms.push_back(go);
     }
 
-    // ────────────────────────────────────────────────────────
+    // ── 랜덤박스 배치 ────────────────────────────────────────
+    void BuildRandomBoxes()
+    {
+        AddRandomBox(0.0f, 2.5f);
+        AddRandomBox(3.0f, 6.0f);
+        AddRandomBox(-2.0f, 10.0f);
+        AddRandomBox(1.0f, 14.0f);
+    }
+
+    void AddRandomBox(float cx, float cy,
+        const wchar_t* texPath = L"item_randombox.png")
+    {
+        auto* mat = new ColorMaterial(DefaultShaders, { 1.0f, 0.8f, 0.2f, 1.0f }, &Gfx);
+        OwnedMaterials.push_back(mat);
+        auto* srv = TexCache.Get(texPath);
+        if (srv) mat->SetTexture(srv);
+
+        auto* go = new GameObject(cx, cy);
+        go->Scale = { 0.4f, 0.4f };
+        go->AddComponent(new MeshRenderer(QuadMesh, mat));
+        go->AddComponent(new RandomBoxComp());
+
+        RandomBoxes.push_back(go);
+    }
+
+    // ── 체크포인트 깃발 오브젝트 생성 ───────────────────────
+    void BuildFlag()
+    {
+        FlagObject = new GameObject(0.0f, 0.0f);
+        FlagObject->Active = false;
+
+        auto* cfr = new CheckpointFlagRenderer();
+        cfr->MastMesh = QuadMesh;
+        cfr->FlagMesh = QuadMesh;
+        cfr->MatMast = MatFlagMast;
+        cfr->MatFlag = MatFlagFlag;
+        FlagObject->AddComponent(cfr);
+    }
+
+    // ── 플레이어 조립 ────────────────────────────────────────
     void BuildPlayer()
     {
         auto* player = new GameObject(0.0f, 1.5f);
@@ -1424,11 +1932,29 @@ public:
         player->AddComponent(new MeshRenderer(QuadMesh, MatPlayer));
 
         auto* pc = new PlayerController();
-        pc->Platforms = &Platforms;   // 전역 대신 직접 주입
+        pc->Platforms = &Platforms;
+        pc->ItemState = &ItemStateData;
         pc->Checkpoint = { 0.0f, 1.5f };
+        pc->CheckpointFlag = FlagObject;
         player->AddComponent(pc);
 
+        pc->MatNormal = MatPlayer;
+        pc->MatFly = MatPlayerFly;
+        pc->MatPassThrough = MatPlayerPT;
+        pc->MatShield = MatPlayerShld;
+
         player->AddComponent(new JumpChargeBar(BarMesh, MatChargeBar));
+
+        auto* aib = new ActiveItemBar(QuadMesh);
+        for (int i = 0; i < ActiveItemBar::BAR_COUNT && i < ITEM_MAT_COUNT; ++i)
+            aib->MatBars[i] = MatItemBar[i];
+        player->AddComponent(aib);
+
+        auto* rui = new RouletteUI();
+        rui->pQuad = QuadMesh;
+        for (int i = 0; i < RouletteState::ITEM_COUNT && i < ITEM_MAT_COUNT; ++i)
+            rui->MatIcon[i] = MatRouletteIcon[i];
+        player->AddComponent(rui);
 
         World.push_back(player);
     }
@@ -1460,15 +1986,18 @@ public:
         }
         MousePressed = lbNow;
 
-        for (auto* go : World)     go->Input();
-        for (auto* go : Platforms) go->Input();
+        for (auto* go : World)       go->Input();
+        for (auto* go : Platforms)   go->Input();
+        for (auto* go : RandomBoxes) go->Input();
     }
 
     void Update()
     {
         float dt = Timer.Get();
-        for (auto* go : Platforms) go->Update(dt, &Gfx);
-        for (auto* go : World)     go->Update(dt, &Gfx);
+        for (auto* go : Platforms)   go->Update(dt, &Gfx);
+        for (auto* go : World)       go->Update(dt, &Gfx);
+        for (auto* go : RandomBoxes) go->Update(dt, &Gfx);
+        if (FlagObject) FlagObject->Update(dt, &Gfx);
         if (!World.empty()) Cam.Follow(World[0]->Pos, dt);
     }
 
@@ -1483,8 +2012,10 @@ public:
         Gfx.Context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
         Cam.Upload(&Gfx);
-        for (auto* go : Platforms) go->Render(&Gfx);
-        for (auto* go : World)     go->Render(&Gfx);
+        for (auto* go : Platforms)   go->Render(&Gfx);
+        for (auto* go : RandomBoxes) go->Render(&Gfx);
+        if (FlagObject) FlagObject->Render(&Gfx);
+        for (auto* go : World)       go->Render(&Gfx);
 
         Gfx.SwapChain->Present(1, 0);
     }
