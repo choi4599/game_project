@@ -626,8 +626,13 @@ public:
     ~MeshRenderer() override { if (CB) CB->Release(); }
 };
 
+
 // ============================================================
 //  Camera
+//  ─ 점프킹 스타일 카메라
+//    [1] X축은 시작 위치에 고정 (좌우 카메라 이동 없음)
+//    [2] Y축은 한 화면 단위로 컷 전환 (부드러운 추적 X)
+//    [3] Y는 StartY 미만으로 절대 내려가지 않음 (월드 바닥 = 시작 화면)
 // ============================================================
 class Camera
 {
@@ -636,6 +641,10 @@ public:
     float         ViewW = 0;
     float         ViewH = 0;
     ID3D11Buffer* CB = nullptr;
+
+    // ── [추가] 점프킹 카메라 제어용 멤버 ──
+    float StartY = 0.0f;   // 카메라 Y 최솟값 (시작 화면 위치)
+    float FixedX = 0.0f;   // 카메라 X 고정값 (점프킹은 좌우 이동 없음)
 
     void Init(GraphicsContext* gfx, int w, int h)
     {
@@ -647,11 +656,35 @@ public:
         gfx->Device->CreateBuffer(&bd, nullptr, &CB);
     }
 
+    // ────────────────────────────────────────────────────────
+    //  [점프킹 스타일 카메라 추적]
+    //  ─ dt 는 이제 사용하지 않음 (부드러운 보간 제거)
+    //    시그니처는 유지해서 호출부 변경 없게 함
+    // ────────────────────────────────────────────────────────
     void Follow(Vec2 target, float dt)
     {
-        float s = 5.0f;
-        Pos.x += (target.x - Pos.x) * s * dt;
-        Pos.y += (target.y - Pos.y) * s * dt;
+        // [1. X축 고정]
+        //    점프킹은 좌우 카메라 이동이 없음. 시작 위치 그대로.
+        Pos.x = FixedX;
+
+        // [2. 한 화면 세로 크기 계산]
+        //    셰이더 좌표 변환에서 보이는 세로 범위 = ViewH / 200.0f
+        //    (창 크기가 800x600일 때 정확히 3.0 유닛)
+        const float SCREEN_WORLD_H = ViewH / 200.0f;
+        const float halfView = SCREEN_WORLD_H * 0.5f;
+
+        // [3. 플레이어가 현재 화면 상단을 넘으면 한 화면 위로 컷]
+        //    while 인 이유: 점프 한 번에 두 화면 이상 넘어가는 경우 대비
+        while (target.y > Pos.y + halfView)
+            Pos.y += SCREEN_WORLD_H;
+
+        // [4. 플레이어가 현재 화면 하단을 넘으면 한 화면 아래로 컷]
+        //    단, StartY 미만으로는 절대 내려가지 않음 (월드 바닥)
+        while (target.y < Pos.y - halfView && Pos.y > StartY)
+            Pos.y -= SCREEN_WORLD_H;
+
+        // [5. 안전장치: 부동소수점 누적 오차 또는 StartY 침범 방지]
+        if (Pos.y < StartY) Pos.y = StartY;
     }
 
     void Upload(GraphicsContext* gfx)
@@ -1817,8 +1850,22 @@ public:
     // ────────────────────────────────────────────────────────
     void BuildMap()
     {
+        // ㅡ 왼쪽 벽 ㅡ
+        AddPlatform(PlatformType::Normal, -10.0f, -5.0f, -5.0f, 0.0f, L"stoneWall.png");
+        AddPlatform(PlatformType::Normal, -10.0f, 0.0f, -5.0f, 5.0f, L"stoneWall.png");
+        AddPlatform(PlatformType::Normal, -10.0f, 5.0f, -5.0f, 10.0f, L"stoneWall.png");
+        AddPlatform(PlatformType::Normal, -10.0f, 10.0f, -5.0f, 15.0f, L"stoneWall.png");
+        AddPlatform(PlatformType::Normal, -10.0f, 15.0f, -5.0f, 20.0f, L"stoneWall.png");
+
+        // ㅡ 오른쪽 벽 ㅡ
+        AddPlatform(PlatformType::Normal, 5.0f, -5.0f, 10.0f, 0.0f, L"stoneWall.png");
+        AddPlatform(PlatformType::Normal, 5.0f, 0.0f, 10.0f, 5.0f, L"stoneWall.png");
+        AddPlatform(PlatformType::Normal, 5.0f, 5.0f, 10.0f, 10.0f, L"stoneWall.png");
+        AddPlatform(PlatformType::Normal, 5.0f, 10.0f, 10.0f, 15.0f, L"stoneWall.png");
+        AddPlatform(PlatformType::Normal, 5.0f, 15.0f, 10.0f, 20.0f, L"stoneWall.png");
+
         // ── 바닥 ──
-        AddPlatform(PlatformType::Normal, -5.0f, -3.0f, 5.0f, 0.0f, L"ground2.png");
+        AddPlatform(PlatformType::Normal, -5.0f, -5.0f, 5.0f, 0.0f, L"ground2.png");
 
         // ── 1층 ──
         AddPlatform(PlatformType::Normal, -3.0f, 1.5f, 0.0f, 1.8f, L"ground1.png");
@@ -1926,7 +1973,12 @@ public:
     // ── 플레이어 조립 ────────────────────────────────────────
     void BuildPlayer()
     {
-        auto* player = new GameObject(0.0f, 1.5f);
+        // [플레이어 시작 위치]
+        //  ─ 카메라 시작 위치와 동일하게 잡아서 화면 중앙에 배치
+        const float startX = 0.0f;
+        const float startY = 1.5f;
+
+        auto* player = new GameObject(startX, startY);
         player->Scale = { 0.6f, 0.6f };
 
         player->AddComponent(new MeshRenderer(QuadMesh, MatPlayer));
@@ -1934,7 +1986,7 @@ public:
         auto* pc = new PlayerController();
         pc->Platforms = &Platforms;
         pc->ItemState = &ItemStateData;
-        pc->Checkpoint = { 0.0f, 1.5f };
+        pc->Checkpoint = { startX, startY };
         pc->CheckpointFlag = FlagObject;
         player->AddComponent(pc);
 
@@ -1957,6 +2009,12 @@ public:
         player->AddComponent(rui);
 
         World.push_back(player);
+
+        // [카메라 점프킹 모드 초기화]
+        //  ─ X는 시작점에 고정, Y는 시작점이 최솟값
+        Cam.FixedX = startX;
+        Cam.StartY = startY;
+        Cam.Pos = { startX, startY };
     }
 
     // ────────────────────────────────────────────────────────
