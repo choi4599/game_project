@@ -936,6 +936,7 @@ public:
     // ── 튕김(Bounce) 설정 ──
     float BounceFactor = 0.85f;
     float MinBounceSpeed = 3.0f;
+    float MaxBounceSpeed = 6.0f;
 
     // ── 비행 모드 ──
     bool FlyMode = false;   // DevFly (F키)
@@ -1245,26 +1246,43 @@ private:
         bool hitSideWall = (minO == oL || minO == oR) ||
             (abs(Vel.x) > 1.0f && minO != oT && minO != oB);
 
+        // --- ResolveCollision 함수 내부의 벽 충돌 분기문 수정 ---
+
         if (hitSideWall && !OnGround)
         {
-
-            if (oL < oR)
+            if (oL < oR) // 왼쪽 벽 옆구리 박음 (오른쪽 이동 중 -> 왼쪽으로 튕김)
             {
                 Owner->Pos.x = platform.left - HalfW;
                 if (Vel.x >= 0.0f)
                 {
                     float speed = max(MinBounceSpeed, Vel.x);
-                    Vel.x = -speed * HORIZONTAL_BOUNCE;
+                    // 1. 우선 원래 설계대로 1.3배 증폭 계산
+                    float bouncedSpeed = speed * HORIZONTAL_BOUNCE;
+
+                    // 2. ★ 최대 증폭값 클램프 (MaxBounceSpeed를 넘지 않도록 제한)
+                    if (bouncedSpeed > MaxBounceSpeed) bouncedSpeed = MaxBounceSpeed;
+
+                    // 3. 최종 속도 적용 (왼쪽 방향이므로 마이너스)
+                    Vel.x = -bouncedSpeed;
+
                     if (Vel.y > 0.0f) Vel.y *= 0.6f;
                 }
             }
-            else
+            else // 오른쪽 벽 옆구리 박음 (왼쪽 이동 중 -> 오른쪽으로 튕김)
             {
                 Owner->Pos.x = platform.right + HalfW;
                 if (Vel.x <= 0.0f)
                 {
                     float speed = max(MinBounceSpeed, -Vel.x);
-                    Vel.x = speed * HORIZONTAL_BOUNCE;
+                    // 1. 우선 원래 설계대로 1.3배 증폭 계산
+                    float bouncedSpeed = speed * HORIZONTAL_BOUNCE;
+
+                    // 2. ★ 최대 증폭값 클램프
+                    if (bouncedSpeed > MaxBounceSpeed) bouncedSpeed = MaxBounceSpeed;
+
+                    // 3. 최종 속도 적용 (오른쪽 방향이므로 플러스)
+                    Vel.x = bouncedSpeed;
+
                     if (Vel.y > 0.0f) Vel.y *= 0.6f;
                 }
             }
