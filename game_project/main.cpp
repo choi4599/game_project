@@ -910,6 +910,8 @@ public:
     float HalfW = 0.3f;
     float HalfH = 0.3f;
 
+    Vec2 PrevPos = { 0, 0 };
+
     // ── 점프 상태 (충전 시스템) ──
     bool  PrevSpace = false;
     bool  SpacePressedThisFrame = false;
@@ -955,7 +957,7 @@ public:
     ColorMaterial* MatShield = nullptr;
 
     // ── 입력 엣지 감지 ──
-    bool PrevF = false, PrevR = false, PrevC = false;
+    bool PrevF = false, PrevR = false;
 
     // ────────────────────────────────────────────────────────
     void Input() override
@@ -967,7 +969,13 @@ public:
 
         bool fNow = (GetAsyncKeyState('F') & 0x8000) != 0;
         bool rNow = (GetAsyncKeyState('R') & 0x8000) != 0;
-        bool cNow = (GetAsyncKeyState('C') & 0x8000) != 0;
+
+        if (GetAsyncKeyState('1') & 0x8000) ItemState->Apply(ItemType::Fly, this);
+        if (GetAsyncKeyState('2') & 0x8000) ItemState->Apply(ItemType::PassThrough, this);
+        if (GetAsyncKeyState('3') & 0x8000) ItemState->Apply(ItemType::Shield, this);
+        if (GetAsyncKeyState('4') & 0x8000) ItemState->Apply(ItemType::Checkpoint, this);
+
+
 
         MoveInput = 0.0f;
         if (GetAsyncKeyState(VK_LEFT) & 0x8000) MoveInput -= 1.0f;
@@ -980,17 +988,14 @@ public:
         }
         if (rNow && !PrevR)
         {
+            if (CheckpointFlag->Active == false) return;
             if (CheckpointFlag) CheckpointFlag->Active = false;
             Owner->Pos = Checkpoint; Vel = { 0, 0 };
             printf("[Dev] Reset (%.2f, %.2f)\n", Checkpoint.x, Checkpoint.y);
         }
-        if (cNow && !PrevC)
-        {
-            Checkpoint = Owner->Pos;
-            printf("[Dev] Checkpoint (%.2f, %.2f)\n", Checkpoint.x, Checkpoint.y);
-        }
 
-        PrevF = fNow; PrevR = rNow; PrevC = cNow;
+
+        PrevF = fNow; PrevR = rNow;
     }
 
     // ────────────────────────────────────────────────────────
@@ -1024,6 +1029,8 @@ public:
             }
         }
 
+        PrevPos = Owner->Pos;
+
         // ── Fly 아이템 발동 중이면 FlyMode 강제 ON ──
         if (ItemState && ItemState->FlyActive) FlyMode = true;
 
@@ -1031,6 +1038,7 @@ public:
         {
             UpdateFly(dt);
             if (item_flymode) ResolveAllCollisions(dt);
+            Owner->Rot += (0.0f - Owner->Rot) * 15.0f * dt;
             return;
         }
 
@@ -1040,6 +1048,7 @@ public:
 
         UpdateMovement(dt);
         UpdateJump(dt);
+
 
         // 순수 물리 이동만 적용
         Owner->Pos.x += Vel.x * dt;
@@ -1200,22 +1209,27 @@ private:
 
         bool shielded = (ItemState && ItemState->ShieldActive);
 
+        float oL = player.right - platform.left;
+        float oR = platform.right - player.left;
+        float oB = player.top - platform.bottom;
+        float oT = platform.top - player.bottom;
+        float minO = min(min(oL, oR), min(oB, oT));
+        float prevBottom = PrevPos.y - HalfH;
+
+        bool fromAbove = (prevBottom >= platform.top - 0.01f);
+
         // ── PassThrough 플랫폼 타입 OR 아이템 PassThrough ──
         if (plat->Type == PlatformType::PassThrough ||
             (ItemState && ItemState->PassThroughActive))
         {
-            float penetrationY = platform.top - player.bottom;
-            float marginX = HalfW * 0.5f;
-            bool  isWithinX = (player.right - marginX > platform.left) &&
-                (player.left + marginX < platform.right);
-            if (isWithinX && Vel.y <= 0.0f && penetrationY > 0.0f &&
-                penetrationY <= max(0.2f, -Vel.y * dt * 2.0f))
+            if (minO == oT && Vel.y <= 0.0f && fromAbove)
             {
                 Owner->Pos.y = platform.top + HalfH;
                 Vel.y = 0;
                 OnGround = true;
-                ReverseTimer = 0.0f;
             }
+
+
             if (ItemState && ItemState->PassThroughActive) {
                 if (shielded) return;
 
@@ -1232,17 +1246,12 @@ private:
             return;
         }
 
-        float oL = player.right - platform.left;
-        float oR = platform.right - player.left;
-        float oB = player.top - platform.bottom;
-        float oT = platform.top - player.bottom;
-        float minO = min(min(oL, oR), min(oB, oT));
 
 
 
         const float HORIZONTAL_BOUNCE = 1.3f;
 
-        // 수정: minO != oB 조건 추가 (2번 코드 기준)
+        // 수정: minO != oB 조건 추가
         bool hitSideWall = (minO == oL || minO == oR) ||
             (abs(Vel.x) > 1.0f && minO != oT && minO != oB);
 
@@ -1648,15 +1657,32 @@ public:
     GameObject* Player = nullptr;
     PlayerController* PC = nullptr;
 
+    float RespawnTimer = 0.0f;
+    static constexpr float RESPAWN_DURATION = 30.0f;
+
     void Update(float dt) override
     {
-        if (Picked || !Player || !PC) return;
+        if (Picked)
+        {
+            RespawnTimer += dt;
+            if (RespawnTimer >= RESPAWN_DURATION)
+            {
+                Picked = false;
+                RespawnTimer = 0.0f;
+                Owner->Visible = true;
+                printf("[RandomBox] 재생성!\n");
+            }
+            return;
+        }
+
+        if (!Player || !PC) return;
         float dx = Owner->Pos.x - Player->Pos.x;
         float dy = Owner->Pos.y - Player->Pos.y;
-        if (sqrtf(dx * dx + dy * dy) < ITEM_PICKUP_RADIUS)
+        if (sqrtf(dx * dx + dy * dy) < ITEM_PICKUP_RADIUS&& !PC->Roulette.Active && !PC->Roulette.ShowResult)
         {
             Picked = true;
-            Owner->Active = false;
+            RespawnTimer = 0.0f;   // 타이머 초기화
+            Owner->Visible = false;
             PC->Roulette.Start();
             printf("[RandomBox] 룰렛 시작!\n");
         }
@@ -1882,9 +1908,33 @@ public:
         AddPlatform(PlatformType::Normal, 5.0f, 10.0f, 10.0f, 15.0f, L"stoneWall.png");
         AddPlatform(PlatformType::Normal, 5.0f, 15.0f, 10.0f, 20.0f, L"stoneWall.png");
 
+        AddPlatform(PlatformType::PassThrough, -5.0f, 0.0f, 5.0f, 20.0f, L"background1__.png");
+        AddPlatform(PlatformType::PassThrough, -5.0f, 20.0f, 5.0f, 40.0f, L"background2_.png");
+        AddPlatform(PlatformType::PassThrough, -5.0f, 40.0f, 5.0f, 60.0f, L"background3_.png");
+
         // ── 바닥 ──
         AddPlatform(PlatformType::Normal, -5.0f, -5.0f, 5.0f, 0.0f, L"ground2.png");
 
+        AddPlatform(PlatformType::Normal, 1.0f, 1.5f, 2.0f, 1.8f, L"ground1.png");
+        AddPlatform(PlatformType::Normal, 3.0f, 2.5f, 4.0f, 2.8f, L"ground1.png");
+        AddPlatform(PlatformType::Normal, 1.0f, 3.5f, 2.0f, 3.8f, L"ground1.png");
+        AddPlatform(PlatformType::Normal, 3.0f, 4.5f, 4.0f, 4.8f, L"ground1.png");
+        AddPlatform(PlatformType::Normal, 1.0f, 5.5f, 2.0f, 5.8f, L"ground1.png");
+        AddPlatform(PlatformType::Normal, -0.8f, 5.5f, -0.2f, 5.8f, L"ground1.png");
+        AddPlatform(PlatformType::Normal, -2.8f, 5.5f, -2.2f, 5.8f, L"ground1.png");
+        AddPlatform(PlatformType::Normal, -3.8f, 6.5f, -3.2f, 6.8f, L"ground1.png");
+        AddPlatform(PlatformType::Vanishing, -3.8f, 8.2f, -3.2f, 8.5f, L"vanishing1.png");
+        AddPlatform(PlatformType::Normal, -3.8f, 9.9f, -3.2f, 10.2f, L"ground1.png");
+        AddPlatform(PlatformType::Normal, -0.6f, 8.2f, -0.2f, 8.5f, L"ground1.png");
+        AddPlatform(PlatformType::Ice, 1.8f, 8.2f, 2.2f, 8.5f, L"ice1.png");
+        AddPlatform(PlatformType::Ice, 3.8f, 9.7f, 4.2f, 10.0f, L"ice1.png");
+        AddPlatform(PlatformType::Ice, 1.8f, 11.2f, 2.2f, 11.5f, L"ice1.png");
+        AddPlatform(PlatformType::Ice, 3.8f, 12.7f, 4.2f, 13.0f, L"ice1.png");
+        AddPlatform(PlatformType::Moving, -1.0f, 13.7f, 1.2f, 14.0f, L"moving1.png");
+        AddPlatform(PlatformType::Moving, -3.0f, 15.5f, -2.5f, 15.8f, L"moving1.png");
+        AddPlatform(PlatformType::Moving, -1.0f, 17.5f, -0.5f, 17.8f, L"moving1.png");
+        AddPlatform(PlatformType::Moving, -3.0f, 19.5f, -2.5f, 19.8f, L"moving1.png");
+        /*
         // ── 1층 ──
         AddPlatform(PlatformType::Normal, -3.0f, 1.5f, 0.0f, 1.8f, L"ground1.png");
         AddPlatform(PlatformType::Ice, 1.0f, 1.5f, 3.5f, 1.8f, L"ice1.png");
@@ -1909,6 +1959,8 @@ public:
 
         // ── 꼭대기 ──
         AddPlatform(PlatformType::Normal, -1.5f, 17.5f, 1.5f, 17.8f, L"ground1.png");
+        */
+
     }
 
     // ────────────────────────────────────────────────────────
@@ -1952,10 +2004,14 @@ public:
     // ── 랜덤박스 배치 ────────────────────────────────────────
     void BuildRandomBoxes()
     {
+        AddRandomBox(3.0f, 6.0f);
+        AddRandomBox(1.0f, 14.0f);
+        /*
         AddRandomBox(0.0f, 2.5f);
         AddRandomBox(3.0f, 6.0f);
         AddRandomBox(-2.0f, 10.0f);
         AddRandomBox(1.0f, 14.0f);
+        */
     }
 
     void AddRandomBox(float cx, float cy,
