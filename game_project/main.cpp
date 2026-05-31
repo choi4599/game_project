@@ -156,7 +156,8 @@ enum class PlatformType {
     PassThrough,
     Vanishing,
     Reverse,
-    Moving
+    Moving,
+    Bomb
 };
 
 // ============================================================
@@ -734,12 +735,28 @@ public:
     // 플레이어가 한번 밟았는지
     bool Triggered = false;
 
+    // Bomb 플랫폼
+    bool IsShaking = false;
+
+    float BombTimer = 0.0f;
+
+    float IdleTime = 2.0f;
+
+    float ShakeTime = 0.7f;
+
+    float OriginX = 0.0f;
+
+    bool HasBouncedPlayer = false;
 
     PlatformComp(PlatformType t) : Type(t) {}
 
     void Start(GraphicsContext* gfx) override
     {
-        StartPos = Owner->Pos;
+      // Moving 플랫폼용
+      StartPos = Owner->Pos;
+
+      // Bomb 플랫폼 원래 위치 저장
+      OriginX = Owner->Pos.x;
     }
 
     void Update(float dt) override
@@ -768,6 +785,32 @@ public:
         {
             MoveTimer += dt * MoveSpeed;
             Owner->Pos.x = StartPos.x + sinf(MoveTimer) * MoveRange;
+        }
+
+        if (Type == PlatformType::Bomb)
+        {
+          BombTimer += dt;
+
+          if (!IsShaking && BombTimer >= IdleTime)
+          {
+            IsShaking = true;
+            HasBouncedPlayer = false;
+          }
+
+          if (IsShaking)
+          {
+            Owner->Pos.x =
+              OriginX + sinf(BombTimer * 50.0f) * 0.08f;
+
+            if (BombTimer >= IdleTime + ShakeTime)
+            {
+              IsShaking = false;
+
+              BombTimer = 0.0f;
+
+              Owner->Pos.x = OriginX;
+            }
+          }
         }
     }
 
@@ -1308,6 +1351,20 @@ private:
 
                     if (plat->Type == PlatformType::Vanishing)
                         plat->Triggered = true;
+
+                    if (plat->Type == PlatformType::Bomb && plat->IsShaking && !plat->HasBouncedPlayer)
+                    {
+                      plat->HasBouncedPlayer = true;
+
+                      Vel.y = 12.0f;
+
+                      float dir =
+                        (rand() % 2 == 0) ? -1.0f : 1.0f;
+
+                      Vel.x = dir * 6.0f;
+
+                      OnGround = false;
+                    }
                 }
             }
             else if (minO == oB)
@@ -1709,6 +1766,14 @@ public:
 
     bool MousePressed = false;
 
+    // 패턴 플랫폼
+    std::vector<PlatformComp*> PatternPlatforms;
+
+    float PatternTimer = 0.0f;
+    float PatternInterval = 1.5f;
+
+    int PatternIndex = 0;
+
     GameLoop() { printf("[Engine] GameLoop Created.\n"); }
 
     ~GameLoop()
@@ -1907,8 +1972,40 @@ public:
         AddPlatform(PlatformType::Ice, 0.5f, 13.5f, 3.5f, 13.8f, L"ice1.png");
         AddPlatform(PlatformType::Moving, -2.0f, 15.5f, 2.0f, 15.8f, L"moving1.png");
 
+        // ── 5층 ──
+        AddPlatform(PlatformType::Normal, -4.5f, 17.0f, -2.0f, 17.3f, L"ground1.png");
+        AddPlatform(PlatformType::Ice, 2.0f, 17.3f, 4.5f, 17.6f, L"ice1.png");
+
+        // ── 6층 ──
+        AddPlatform(PlatformType::Normal, -3.0f, 19.0f, -1.0f, 19.3f, L"ground1.png");
+        AddPlatform(PlatformType::Normal, 1.0f, 19.5f, 3.0f, 19.8f, L"ground1.png");
+
+        // ── 7층 ──
+        AddPatternPlatform(PlatformType::Normal, -4.5f, 20.5f, -2.5f, 20.8f, L"ground1.png");
+        AddPatternPlatform(PlatformType::Ice, -1.0f, 21.4f, 1.0f, 21.7f, L"ice1.png");
+        AddPatternPlatform(PlatformType::Reverse, 2.0f, 22.4f, 4.0f, 22.7f, L"reverse1.png");
+        AddPatternPlatform(PlatformType::Normal, 0.0f, 23.4f, 2.0f, 23.7f, L"ground1.png");
+        AddPatternPlatform(PlatformType::Ice, -3.0f, 24.4f, -1.0f, 24.7f, L"ice1.png");
+
+        // ── 8층 ──
+        AddPlatform(PlatformType::Bomb, -4.5f, 26.0f, -2.5f, 26.3f, L"ground1.png");
+        AddPlatform(PlatformType::Moving, -0.5f, 26.5f, 1.5f, 26.8f, L"moving1.png");
+
+        // ── 9층 ──
+        AddPlatform(PlatformType::Ice, -3.0f, 29.1f, -0.5f, 29.4f, L"ice1.png");
+        AddPlatform(PlatformType::Reverse, 1.5f, 28.5f, 4.0f, 28.8f, L"reverse1.png");
+
+        if (PatternPlatforms.size() >= 2)
+        {
+          PatternPlatforms[0]->IsActive = true;
+          PatternPlatforms[0]->Owner->Visible = true;
+
+          PatternPlatforms[1]->IsActive = true;
+          PatternPlatforms[1]->Owner->Visible = true;
+        }
+
         // ── 꼭대기 ──
-        AddPlatform(PlatformType::Normal, -1.5f, 17.5f, 1.5f, 17.8f, L"ground1.png");
+        AddPlatform(PlatformType::Normal, -1.5f, 31.3f, 1.5f, 31.6f, L"ground1.png");
     }
 
     // ────────────────────────────────────────────────────────
@@ -1933,6 +2030,7 @@ public:
         case PlatformType::Vanishing:   color = { 1.0f, 0.3f, 0.3f, 1.0f }; break;
         case PlatformType::Reverse:     color = { 0.8f, 0.3f, 1.0f, 1.0f }; break;
         case PlatformType::Moving:      color = { 1.0f, 0.8f, 0.2f, 1.0f }; break;
+        case PlatformType::Bomb:        color = { 1.0f, 0.5f, 0.2f, 1.0f }; break;
         }
 
         auto* mat = new ColorMaterial(DefaultShaders, color, &Gfx);
@@ -1947,6 +2045,54 @@ public:
         go->AddComponent(new PlatformComp(type));
 
         Platforms.push_back(go);
+    }
+
+    void AddPatternPlatform(
+      PlatformType type,
+      float lx, float by, float rx, float ty,
+      const wchar_t* texPath = nullptr)
+    {
+      float w = rx - lx;
+      float h = ty - by;
+      float cx = (lx + rx) * 0.5f;
+      float cy = (by + ty) * 0.5f;
+
+      XMFLOAT4 color = { 1,1,1,1 };
+
+      switch (type)
+      {
+      case PlatformType::Normal:      color = { 0.5f, 0.4f, 0.3f, 1.0f }; break;
+      case PlatformType::Ice:         color = { 0.6f, 0.9f, 1.0f, 1.0f }; break;
+      case PlatformType::PassThrough: color = { 0.4f, 0.8f, 0.4f, 1.0f }; break;
+      case PlatformType::Vanishing:   color = { 1.0f, 0.3f, 0.3f, 1.0f }; break;
+      case PlatformType::Reverse:     color = { 0.8f, 0.3f, 1.0f, 1.0f }; break;
+      case PlatformType::Moving:      color = { 1.0f, 0.8f, 0.2f, 1.0f }; break;
+      case PlatformType::Bomb:        color = { 1.0f, 0.5f, 0.2f, 1.0f }; break;
+      }
+
+      auto* mat = new ColorMaterial(DefaultShaders, color, &Gfx);
+      OwnedMaterials.push_back(mat);
+
+      auto* srv = TexCache.Get(texPath);
+      if (srv) mat->SetTexture(srv);
+
+      auto* go = new GameObject(cx, cy);
+      go->Scale = { w, h };
+
+      go->AddComponent(new MeshRenderer(QuadMesh, mat));
+
+      auto* plat = new PlatformComp(type);
+
+      // 처음엔 비활성
+      plat->IsActive = false;
+      go->Visible = false;
+
+      go->AddComponent(plat);
+
+      Platforms.push_back(go);
+
+      // 패턴 플랫폼 등록
+      PatternPlatforms.push_back(plat);
     }
 
     // ── 랜덤박스 배치 ────────────────────────────────────────
@@ -2067,9 +2213,76 @@ public:
         for (auto* go : RandomBoxes) go->Input();
     }
 
+    void UpdatePatternPlatforms(float dt)
+    {
+      if (PatternPlatforms.size() < 2)
+        return;
+
+      PatternTimer += dt;
+
+      int current = PatternIndex;
+      int next = (PatternIndex + 1) % PatternPlatforms.size();
+
+      // ---------------------------
+      // 사라질 플랫폼만 깜빡임
+      // ---------------------------
+
+      float blinkStart = PatternInterval - 0.2f;
+
+      if (PatternTimer >= blinkStart)
+      {
+        bool visible =
+          ((int)(PatternTimer * 10.0f) % 2) == 0;
+
+        PatternPlatforms[current]->Owner->Visible = visible;
+
+        // 다음 플랫폼은 계속 보임
+        PatternPlatforms[next]->Owner->Visible = true;
+      }
+      else
+      {
+        PatternPlatforms[current]->Owner->Visible = true;
+        PatternPlatforms[next]->Owner->Visible = true;
+      }
+
+      // ---------------------------
+      // 패턴 전환
+      // ---------------------------
+
+      if (PatternTimer >= PatternInterval)
+      {
+        PatternTimer = 0.0f;
+
+        PatternIndex++;
+
+        if (PatternIndex >= PatternPlatforms.size())
+          PatternIndex = 0;
+
+        // 전부 끄기
+        for (auto* plat : PatternPlatforms)
+        {
+          plat->IsActive = false;
+          plat->Owner->Visible = false;
+        }
+
+        current = PatternIndex;
+        next = (PatternIndex + 1) % PatternPlatforms.size();
+
+        // 현재 + 다음 활성화
+        PatternPlatforms[current]->IsActive = true;
+        PatternPlatforms[current]->Owner->Visible = true;
+
+        PatternPlatforms[next]->IsActive = true;
+        PatternPlatforms[next]->Owner->Visible = true;
+      }
+    }
+
     void Update()
     {
         float dt = Timer.Get();
+
+        UpdatePatternPlatforms(dt);
+
         for (auto* go : Platforms)   go->Update(dt, &Gfx);
         for (auto* go : World)       go->Update(dt, &Gfx);
         for (auto* go : RandomBoxes) go->Update(dt, &Gfx);
