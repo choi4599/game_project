@@ -2049,6 +2049,11 @@ public:
         AddPlatform(PlatformType::Normal, -10.0f, 5.0f, -5.0f, 10.0f, L"stoneWall.png");
         AddPlatform(PlatformType::Normal, -10.0f, 10.0f, -5.0f, 15.0f, L"stoneWall.png");
         AddPlatform(PlatformType::Normal, -10.0f, 15.0f, -5.0f, 20.0f, L"stoneWall.png");
+        AddPlatform(PlatformType::Normal, -10.0f, 20.0f, -5.0f, 25.0f, L"stoneWall.png");
+        AddPlatform(PlatformType::Normal, -10.0f, 25.0f, -5.0f, 30.0f, L"stoneWall.png");
+        AddPlatform(PlatformType::Normal, -10.0f, 30.0f, -5.0f, 35.0f, L"stoneWall.png");
+        AddPlatform(PlatformType::Normal, -10.0f, 35.0f, -5.0f, 40.0f, L"stoneWall.png");
+        AddPlatform(PlatformType::Normal, -10.0f, 40.0f, -5.0f, 45.0f, L"stoneWall.png");
 
         // ㅡ 오른쪽 벽 ㅡ
         AddPlatform(PlatformType::Normal, 5.0f, -5.0f, 10.0f, 0.5f, L"stoneWall.png");
@@ -2056,6 +2061,11 @@ public:
         AddPlatform(PlatformType::Normal, 5.0f, 5.0f, 10.0f, 10.0f, L"stoneWall.png");
         AddPlatform(PlatformType::Normal, 5.0f, 10.0f, 10.0f, 15.0f, L"stoneWall.png");
         AddPlatform(PlatformType::Normal, 5.0f, 15.0f, 10.0f, 20.0f, L"stoneWall.png");
+        AddPlatform(PlatformType::Normal, 5.0f, 20.0f, 10.0f, 25.0f, L"stoneWall.png");
+        AddPlatform(PlatformType::Normal, 5.0f, 25.0f, 10.0f, 30.0f, L"stoneWall.png");
+        AddPlatform(PlatformType::Normal, 5.0f, 30.0f, 10.0f, 35.0f, L"stoneWall.png");
+        AddPlatform(PlatformType::Normal, 5.0f, 35.0f, 10.0f, 40.0f, L"stoneWall.png");
+        AddPlatform(PlatformType::Normal, 5.0f, 40.0f, 10.0f, 45.0f, L"stoneWall.png");
 
         AddPlatform(PlatformType::PassThrough, -5.0f, 0.0f, 5.0f, 20.0f, L"background1__.png");
         AddPlatform(PlatformType::PassThrough, -5.0f, 20.0f, 5.0f, 40.0f, L"background2_.png");
@@ -2089,7 +2099,7 @@ public:
         AddPlatform(PlatformType::Ice, 1.0f, 1.5f, 3.5f, 1.8f, L"ice1.png");
         AddPlatform(PlatformType::Normal, -1.0f, 3.5f, 2.0f, 3.8f, L"ground1.png");
 
-        // ── 2층 ──
+        // 2층
         AddPlatform(PlatformType::Normal, -4.0f, 5.0f, -1.5f, 5.3f, L"ground1.png");
         AddPlatform(PlatformType::Ice, 0.0f, 5.5f, 3.0f, 5.8f, L"ice1.png");
         AddPlatform(PlatformType::PassThrough, -2.0f, 7.0f, 0.5f, 7.2f, L"passThrough1.png");
@@ -2106,6 +2116,47 @@ public:
         AddPlatform(PlatformType::Ice, 0.5f, 13.5f, 3.5f, 13.8f, L"ice1.png");
         AddPlatform(PlatformType::Moving, -2.0f, 15.5f, 2.0f, 15.8f, L"moving1.png");
 
+        // ───── ❄️ 던전 중층 ─────
+
+        // 5층 (얼음 등장 비율 상승)
+        AddPlatform(PlatformType::Normal, -4.0f, 17.0f, -2.0f, 17.3f, L"ground1.png");
+        AddPlatform(PlatformType::Ice, -0.5f, 17.0f, 2.0f, 17.3f, L"ice1.png");
+        AddPlatform(PlatformType::PassThrough, -3.0f, 19.5f, 0.5f, 19.7f, L"passThrough1.png");
+        AddPlatform(PlatformType::Normal, 2.5f, 19.0f, 4.5f, 19.3f, L"ground1.png");
+
+        // 6층 (얼음 본격 — 좌우 양쪽이 다 얼음)
+        AddPlatform(PlatformType::Ice, -3.5f, 21.0f, -1.0f, 21.3f, L"ice1.png");
+        AddPlatform(PlatformType::Normal, 1.5f, 21.5f, 3.5f, 21.8f, L"ground1.png");
+        AddPlatform(PlatformType::Ice, -2.0f, 23.5f, 0.5f, 23.8f, L"ice1.png");
+        AddPlatform(PlatformType::PassThrough, 2.0f, 23.5f, 4.0f, 23.7f, L"passThrough1.png");
+
+        // 7층 (좁아지기 시작, 얼음 정밀 점프)
+        AddPlatform(PlatformType::Normal, -3.0f, 25.0f, -1.5f, 25.3f, L"ground1.png");
+        AddPlatform(PlatformType::Ice, 1.0f, 25.5f, 3.5f, 25.8f, L"ice1.png");
+        AddPlatform(PlatformType::PassThrough, -1.0f, 27.0f, 1.0f, 27.2f, L"passThrough1.png");
+        AddPlatform(PlatformType::Normal, 2.5f, 27.5f, 4.0f, 27.8f, L"ground1.png");
+
+        // ───── 🌳 지상 근접 ─────
+
+        // 8층 (잔디 위주, 얼음 1개만 잔존)
+        AddPlatform(PlatformType::Normal, -4.0f, 29.0f, -1.5f, 29.3f, L"ground1.png");
+        AddPlatform(PlatformType::Ice, 0.5f, 29.5f, 2.5f, 29.8f, L"ice1.png");
+        AddPlatform(PlatformType::Normal, -2.0f, 31.5f, 1.0f, 31.8f, L"ground1.png");
+
+        // 9층 (좁고 어려움)
+        AddPlatform(PlatformType::Normal, -3.5f, 33.0f, -1.5f, 33.3f, L"ground1.png");
+        AddPlatform(PlatformType::PassThrough, 0.0f, 33.5f, 2.5f, 33.7f, L"passThrough1.png");
+        AddPlatform(PlatformType::Normal, -1.0f, 35.5f, 1.5f, 35.8f, L"ground1.png");
+
+        // 10층 (최종 챌린지 — 가장 좁음)
+        AddPlatform(PlatformType::Normal, -2.5f, 37.0f, 0.0f, 37.3f, L"ground1.png");
+        AddPlatform(PlatformType::Ice, 1.0f, 39.1f, 3.5f, 39.4f, L"ice1.png");
+        AddPlatform(PlatformType::Normal, -3.5f, 39.5f, -1.0f, 39.8f, L"ground1.png");
+
+        // ═══════════════════════════════════════════════════════════
+        //  꼭대기 (목표 지점)
+        // ═══════════════════════════════════════════════════════════
+        AddPlatform(PlatformType::Normal, -1.5f, 41.5f, 1.5f, 41.8f, L"ground1.png");
         // ── 5층 ──
         AddPlatform(PlatformType::Normal, -4.5f, 17.0f, -2.0f, 17.3f, L"ground1.png");
         AddPlatform(PlatformType::Ice, 2.0f, 17.3f, 4.5f, 17.6f, L"ice1.png");
