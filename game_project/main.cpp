@@ -79,8 +79,8 @@ struct PlayerController;
 // ============================================================
 //  화면 상수
 // ============================================================
-static constexpr int SCREEN_W = 800;
-static constexpr int SCREEN_H = 600;
+static constexpr int SCREEN_W = 1280;
+static constexpr int SCREEN_H = 720;
 
 // ============================================================
 //  물리 상수  ─  게임 느낌 조정은 여기서
@@ -1747,6 +1747,88 @@ public:
 };
 
 // ============================================================
+//  GoalComp  ─  클리어 "판정" (독립 시스템)
+//   · 골 위치는 BuildGoal 에서 좌표 데이터로만 지정
+//   · 플레이어가 골 영역에 닿으면 *Cleared 를 한 번만 true 로
+//   · 맵을 확장해도 이 로직은 건드릴 필요 없음 (위치만 옮기면 됨)
+// ============================================================
+class GoalComp : public Component
+{
+public:
+    GameObject* Player = nullptr;   // 주입
+    bool* Cleared = nullptr;   // 주입 (GameLoop 소유)
+
+    AABB GetAABB() const
+    {
+        float hw = Owner->Scale.x * 0.5f;
+        float hh = Owner->Scale.y * 0.5f;
+        return { Owner->Pos.x - hw, Owner->Pos.x + hw,
+                 Owner->Pos.y - hh, Owner->Pos.y + hh };
+    }
+
+    void Update(float dt) override
+    {
+        if (!Player || !Cleared || *Cleared) return;   // 이미 클리어면 무시
+
+        auto* pc = Player->GetComponent<PlayerController>();
+        float phw = pc ? pc->HalfW : Player->Scale.x * 0.5f;
+        float phh = pc ? pc->HalfH : Player->Scale.y * 0.5f;
+        AABB p = { Player->Pos.x - phw, Player->Pos.x + phw,
+                   Player->Pos.y - phh, Player->Pos.y + phh };
+
+        if (p.Overlaps(GetAABB()))
+        {
+            *Cleared = true;
+            printf("[Game] >>> MISSION COMPLETE <<<\n");
+        }
+    }
+};
+
+// ============================================================
+//  MissionBanner  ─  클리어 "표시" (화면 정중앙 배너)
+//   · Cleared 가 true 일 때만 mission_complete.png 를 카메라 중앙에 그림
+//   · 카메라 위치에 그리므로 항상 화면 한가운데에 뜸
+// ============================================================
+class MissionBanner : public Component
+{
+    ID3D11Buffer* CB = nullptr;
+public:
+    Camera* Cam = nullptr;   // 주입
+    bool* Cleared = nullptr;   // 주입
+    ColorMaterial* Mat = nullptr;   // MISSION COMPLETE 텍스처
+    Mesh* Quad = nullptr;
+    float          Width = 10.0f;      // 배너 가로(월드 단위)
+    float          Height = 2.5f;     // 배너 세로  (4:1 비율)
+
+    void Start(GraphicsContext* gfx) override
+    {
+        D3D11_BUFFER_DESC bd = {};
+        bd.Usage = D3D11_USAGE_DEFAULT;
+        bd.ByteWidth = sizeof(CbWorld);
+        bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+        gfx->Device->CreateBuffer(&bd, nullptr, &CB);
+    }
+
+    void Render(GraphicsContext* gfx) override
+    {
+        if (!Cleared || !*Cleared || !Cam || !Mat || !Quad || !CB) return;
+
+        Mat->Bind(gfx);
+        // 화면 정중앙 = 카메라 위치 (셰이더가 camOffset 기준으로 좌표 변환하므로)
+        XMMATRIX world = XMMatrixScaling(Width, Height, 1.0f)
+            * XMMatrixTranslation(Cam->Pos.x, Cam->Pos.y, 0.0f);
+        CbWorld cb = { XMMatrixTranspose(world) };
+        gfx->Context->UpdateSubresource(CB, 0, nullptr, &cb, 0, 0);
+        gfx->Context->VSSetConstantBuffers(0, 1, &CB);
+        UINT stride = sizeof(Vertex), offset = 0;
+        gfx->Context->IASetVertexBuffers(0, 1, &Quad->VB, &stride, &offset);
+        gfx->Context->Draw(Quad->Count, 0);
+    }
+
+    ~MissionBanner() override { if (CB) CB->Release(); }
+};
+
+// ============================================================
 //  GameLoop
 // ============================================================
 class GameLoop
@@ -1758,6 +1840,7 @@ public:
     Camera                   Cam;
     TextureCache             TexCache;
     bool                     Running = true;
+    bool Cleared = false;
 
     std::vector<GameObject*> World;
     std::vector<GameObject*> Platforms;
@@ -1928,6 +2011,7 @@ public:
         BuildRandomBoxes();
         BuildFlag();
         BuildPlayer();
+        BuildGoal();
 
         // 플레이어 → 랜덤박스에 주입
         if (!World.empty())
@@ -1960,18 +2044,28 @@ public:
     void BuildMap()
     {
         // ㅡ 왼쪽 벽 ㅡ
-        AddPlatform(PlatformType::Normal, -10.0f, -5.0f, -5.0f, 0.0f, L"stoneWall.png");
+        AddPlatform(PlatformType::Normal, -10.0f, -5.0f, -5.0f, 0.5f, L"stoneWall.png");
         AddPlatform(PlatformType::Normal, -10.0f, 0.0f, -5.0f, 5.0f, L"stoneWall.png");
         AddPlatform(PlatformType::Normal, -10.0f, 5.0f, -5.0f, 10.0f, L"stoneWall.png");
         AddPlatform(PlatformType::Normal, -10.0f, 10.0f, -5.0f, 15.0f, L"stoneWall.png");
         AddPlatform(PlatformType::Normal, -10.0f, 15.0f, -5.0f, 20.0f, L"stoneWall.png");
+        AddPlatform(PlatformType::Normal, -10.0f, 20.0f, -5.0f, 25.0f, L"stoneWall.png");
+        AddPlatform(PlatformType::Normal, -10.0f, 25.0f, -5.0f, 30.0f, L"stoneWall.png");
+        AddPlatform(PlatformType::Normal, -10.0f, 30.0f, -5.0f, 35.0f, L"stoneWall.png");
+        AddPlatform(PlatformType::Normal, -10.0f, 35.0f, -5.0f, 40.0f, L"stoneWall.png");
+        AddPlatform(PlatformType::Normal, -10.0f, 40.0f, -5.0f, 45.0f, L"stoneWall.png");
 
         // ㅡ 오른쪽 벽 ㅡ
-        AddPlatform(PlatformType::Normal, 5.0f, -5.0f, 10.0f, 0.0f, L"stoneWall.png");
+        AddPlatform(PlatformType::Normal, 5.0f, -5.0f, 10.0f, 0.5f, L"stoneWall.png");
         AddPlatform(PlatformType::Normal, 5.0f, 0.0f, 10.0f, 5.0f, L"stoneWall.png");
         AddPlatform(PlatformType::Normal, 5.0f, 5.0f, 10.0f, 10.0f, L"stoneWall.png");
         AddPlatform(PlatformType::Normal, 5.0f, 10.0f, 10.0f, 15.0f, L"stoneWall.png");
         AddPlatform(PlatformType::Normal, 5.0f, 15.0f, 10.0f, 20.0f, L"stoneWall.png");
+        AddPlatform(PlatformType::Normal, 5.0f, 20.0f, 10.0f, 25.0f, L"stoneWall.png");
+        AddPlatform(PlatformType::Normal, 5.0f, 25.0f, 10.0f, 30.0f, L"stoneWall.png");
+        AddPlatform(PlatformType::Normal, 5.0f, 30.0f, 10.0f, 35.0f, L"stoneWall.png");
+        AddPlatform(PlatformType::Normal, 5.0f, 35.0f, 10.0f, 40.0f, L"stoneWall.png");
+        AddPlatform(PlatformType::Normal, 5.0f, 40.0f, 10.0f, 45.0f, L"stoneWall.png");
 
         AddPlatform(PlatformType::PassThrough, -5.0f, 0.0f, 5.0f, 20.0f, L"background1__.png");
         AddPlatform(PlatformType::PassThrough, -5.0f, 20.0f, 5.0f, 40.0f, L"background2_.png");
@@ -2005,7 +2099,7 @@ public:
         AddPlatform(PlatformType::Ice, 1.0f, 1.5f, 3.5f, 1.8f, L"ice1.png");
         AddPlatform(PlatformType::Normal, -1.0f, 3.5f, 2.0f, 3.8f, L"ground1.png");
 
-        // ── 2층 ──
+        // 2층
         AddPlatform(PlatformType::Normal, -4.0f, 5.0f, -1.5f, 5.3f, L"ground1.png");
         AddPlatform(PlatformType::Ice, 0.0f, 5.5f, 3.0f, 5.8f, L"ice1.png");
         AddPlatform(PlatformType::PassThrough, -2.0f, 7.0f, 0.5f, 7.2f, L"passThrough1.png");
@@ -2022,6 +2116,47 @@ public:
         AddPlatform(PlatformType::Ice, 0.5f, 13.5f, 3.5f, 13.8f, L"ice1.png");
         AddPlatform(PlatformType::Moving, -2.0f, 15.5f, 2.0f, 15.8f, L"moving1.png");
 
+        // ───── ❄️ 던전 중층 ─────
+
+        // 5층 (얼음 등장 비율 상승)
+        AddPlatform(PlatformType::Normal, -4.0f, 17.0f, -2.0f, 17.3f, L"ground1.png");
+        AddPlatform(PlatformType::Ice, -0.5f, 17.0f, 2.0f, 17.3f, L"ice1.png");
+        AddPlatform(PlatformType::PassThrough, -3.0f, 19.5f, 0.5f, 19.7f, L"passThrough1.png");
+        AddPlatform(PlatformType::Normal, 2.5f, 19.0f, 4.5f, 19.3f, L"ground1.png");
+
+        // 6층 (얼음 본격 — 좌우 양쪽이 다 얼음)
+        AddPlatform(PlatformType::Ice, -3.5f, 21.0f, -1.0f, 21.3f, L"ice1.png");
+        AddPlatform(PlatformType::Normal, 1.5f, 21.5f, 3.5f, 21.8f, L"ground1.png");
+        AddPlatform(PlatformType::Ice, -2.0f, 23.5f, 0.5f, 23.8f, L"ice1.png");
+        AddPlatform(PlatformType::PassThrough, 2.0f, 23.5f, 4.0f, 23.7f, L"passThrough1.png");
+
+        // 7층 (좁아지기 시작, 얼음 정밀 점프)
+        AddPlatform(PlatformType::Normal, -3.0f, 25.0f, -1.5f, 25.3f, L"ground1.png");
+        AddPlatform(PlatformType::Ice, 1.0f, 25.5f, 3.5f, 25.8f, L"ice1.png");
+        AddPlatform(PlatformType::PassThrough, -1.0f, 27.0f, 1.0f, 27.2f, L"passThrough1.png");
+        AddPlatform(PlatformType::Normal, 2.5f, 27.5f, 4.0f, 27.8f, L"ground1.png");
+
+        // ───── 🌳 지상 근접 ─────
+
+        // 8층 (잔디 위주, 얼음 1개만 잔존)
+        AddPlatform(PlatformType::Normal, -4.0f, 29.0f, -1.5f, 29.3f, L"ground1.png");
+        AddPlatform(PlatformType::Ice, 0.5f, 29.5f, 2.5f, 29.8f, L"ice1.png");
+        AddPlatform(PlatformType::Normal, -2.0f, 31.5f, 1.0f, 31.8f, L"ground1.png");
+
+        // 9층 (좁고 어려움)
+        AddPlatform(PlatformType::Normal, -3.5f, 33.0f, -1.5f, 33.3f, L"ground1.png");
+        AddPlatform(PlatformType::PassThrough, 0.0f, 33.5f, 2.5f, 33.7f, L"passThrough1.png");
+        AddPlatform(PlatformType::Normal, -1.0f, 35.5f, 1.5f, 35.8f, L"ground1.png");
+
+        // 10층 (최종 챌린지 — 가장 좁음)
+        AddPlatform(PlatformType::Normal, -2.5f, 37.0f, 0.0f, 37.3f, L"ground1.png");
+        AddPlatform(PlatformType::Ice, 1.0f, 39.1f, 3.5f, 39.4f, L"ice1.png");
+        AddPlatform(PlatformType::Normal, -3.5f, 39.5f, -1.0f, 39.8f, L"ground1.png");
+
+        // ═══════════════════════════════════════════════════════════
+        //  꼭대기 (목표 지점)
+        // ═══════════════════════════════════════════════════════════
+        AddPlatform(PlatformType::Normal, -1.5f, 41.5f, 1.5f, 41.8f, L"ground1.png");
         // ── 5층 ──
         AddPlatform(PlatformType::Normal, -4.5f, 17.0f, -2.0f, 17.3f, L"ground1.png");
         AddPlatform(PlatformType::Ice, 2.0f, 17.3f, 4.5f, 17.6f, L"ice1.png");
@@ -2237,6 +2372,44 @@ public:
         Cam.FixedX = startX;
         Cam.StartY = startY;
         Cam.Pos = { startX, startY };
+    }
+
+    // ── 골(클리어 지점) 조립 ─────────────────────────────────
+    void BuildGoal()
+    {
+        if (World.empty()) return;
+        GameObject* player = World[0];
+
+        // 골 마커 머티리얼 (goal.png 있으면 텍스처, 없으면 금색 사각형) //지우면 아예 보이지 않고 판정은 살아있음
+        auto* matGoal = new ColorMaterial(DefaultShaders, { 1.0f, 0.85f, 0.2f, 1.0f }, &Gfx);
+        OwnedMaterials.push_back(matGoal);
+        if (auto* srv = TexCache.Get(L"goal.png")) matGoal->SetTexture(srv);
+
+        // 미션 배너 머티리얼 (MISSION COMPLETE 이미지)
+        auto* matMission = new ColorMaterial(DefaultShaders, { 1, 1, 1, 1 }, &Gfx);
+        OwnedMaterials.push_back(matMission);
+        if (auto* srv = TexCache.Get(L"mission_complete.png")) matMission->SetTexture(srv);
+
+        // [클리어 지점] ★ 이 좌표만 바꾸면 골 위치가 바뀝니다.
+        //   좌클릭으로 원하는 위치의 월드 좌표를 콘솔에 찍어보고 그 값을 넣으세요.
+        auto* goal = new GameObject(-2.75f, 20.4f);   // 현재 맵 꼭대기 근처
+        goal->Scale = { 2.0f, 0.4f };                 // 닿을 영역 크기
+
+        goal->AddComponent(new MeshRenderer(QuadMesh, matGoal));   // 보이는 마커 //지우면 아예 보이지 않고 판정은 살아있음
+
+        auto* gc = new GoalComp();
+        gc->Player = player;
+        gc->Cleared = &Cleared;
+        goal->AddComponent(gc);                                    // 판정
+
+        auto* banner = new MissionBanner();
+        banner->Cam = &Cam;
+        banner->Cleared = &Cleared;
+        banner->Mat = matMission;
+        banner->Quad = QuadMesh;
+        goal->AddComponent(banner);                                // 표시
+
+        World.push_back(goal);   // World 에 넣으면 Update/Render/삭제 자동
     }
 
     // ────────────────────────────────────────────────────────
