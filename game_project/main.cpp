@@ -1095,7 +1095,8 @@ public:
 
             if (Owner->Pos.y < 0.3)
                 Owner->Pos.y = 0.3;
-
+            if (Owner->Pos.y > 53.0f)
+                Owner->Pos.y = 53.0f;
             return;
 
         }
@@ -1107,7 +1108,8 @@ public:
         UpdateMovement(dt);
         UpdateJump(dt);
         
-
+        if (Owner->Pos.y > 53.0f)
+            Owner->Pos.y = 53.0f;
 
         if (Owner->Pos.x + HalfW > WALL_RIGHT)
         {
@@ -2202,7 +2204,7 @@ public:
       AddPlatform(PlatformType::Normal, -3.8f, 35.3f, -3.2f, 35.6f, L"ground1.png");
 
       // ── 13층 ──
-      AddPlatform(PlatformType::Vanishing, -3.8f, 37.0f, -3.2f, 37.3f, L"vanishing1.png");
+      AddPlatform(PlatformType::Vanishing, -3.8f, 37.0f, -3.2f, 37.3f, L"vanishing2.png");
 
       AddPlatform(PlatformType::Normal, -1.1f, 37.0f, -0.1f, 37.3f, L"ground1.png");
 
@@ -2218,11 +2220,11 @@ public:
       // ── 15층 ──
       AddPlatform(PlatformType::Moving, -1.0f, 42.5f, 1.2f, 42.8f, L"moving1.png");
 
-      AddPlatform(PlatformType::Moving, -3.0f, 44.3f, -2.5f, 44.6f, L"moving1.png");
+      AddPlatform(PlatformType::Moving, -3.0f, 44.3f, -2.5f, 44.6f, L"moving2.png");
 
-      AddPlatform(PlatformType::Moving, -1.0f, 46.3f, -0.5f, 46.6f, L"moving1.png");
+      AddPlatform(PlatformType::Moving, -1.0f, 46.3f, -0.5f, 46.6f, L"moving2.png");
 
-      AddPlatform(PlatformType::Moving, -3.0f, 48.3f, -2.5f, 48.6f, L"moving1.png");
+      AddPlatform(PlatformType::Moving, -3.0f, 48.3f, -2.5f, 48.6f, L"moving2.png");
 
       if (PatternPlatforms.size() >= 2)
       {
@@ -2331,14 +2333,10 @@ public:
     // ── 랜덤박스 배치 ────────────────────────────────────────
     void BuildRandomBoxes()
     {
-        AddRandomBox(3.0f, 6.0f);
+        AddRandomBox(-2.0f, 29.6f);
         AddRandomBox(1.0f, 14.0f);
-        /*
-        AddRandomBox(0.0f, 2.5f);
-        AddRandomBox(3.0f, 6.0f);
-        AddRandomBox(-2.0f, 10.0f);
-        AddRandomBox(1.0f, 14.0f);
-        */
+        AddRandomBox(-0.5f, 37.5f);
+        AddRandomBox(2.0f, 20.0f);
     }
 
     void AddRandomBox(float cx, float cy,
