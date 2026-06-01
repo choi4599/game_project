@@ -2089,7 +2089,7 @@ public:
         printf("[Engine] Ready.\n");
         printf("  Arrow L/R : Move\n");
         printf("  Space     : Jump (hold = charge, release = launch)\n");
-        printf("  F : Fly   R : Reset   ESC : Quit\n");
+        printf("  F : Fly   R : Checkpoint Reset   ESC : Quit\n");
         printf("  LClick : Print world coord\n");
         printf("  [ITEM] Fly  PassThrough  Shield  Checkpoint\n");
         return true;
@@ -2104,148 +2104,137 @@ public:
     // ────────────────────────────────────────────────────────
     void BuildMap()
     {
-        // ㅡ 왼쪽 벽 ㅡ
-        AddPlatform(PlatformType::Wall, -10.0f, -5.0f, -5.0f, 0.0f, L"stoneWall.png");
-        AddPlatform(PlatformType::Wall, -10.0f, 0.0f, -5.0f, 5.0f, L"stoneWall.png");
-        AddPlatform(PlatformType::Wall, -10.0f, 5.0f, -5.0f, 10.0f, L"stoneWall.png");
-        AddPlatform(PlatformType::Wall, -10.0f, 10.0f, -5.0f, 15.0f, L"stoneWall.png");
-        AddPlatform(PlatformType::Wall, -10.0f, 15.0f, -5.0f, 20.0f, L"stoneWall.png");
+      // ㅡ 왼쪽 벽 ㅡ
+      AddPlatform(PlatformType::Wall, -10.0f, -5.0f, -5.0f, 0.0f, L"stoneWall.png");
+      AddPlatform(PlatformType::Wall, -10.0f, 0.0f, -5.0f, 5.0f, L"stoneWall.png");
+      AddPlatform(PlatformType::Wall, -10.0f, 5.0f, -5.0f, 10.0f, L"stoneWall.png");
+      AddPlatform(PlatformType::Wall, -10.0f, 10.0f, -5.0f, 15.0f, L"stoneWall.png");
+      AddPlatform(PlatformType::Wall, -10.0f, 15.0f, -5.0f, 20.0f, L"stoneWall.png");
+      AddPlatform(PlatformType::Wall, -10.0f, 20.0f, -5.0f, 25.0f, L"stoneWall.png");
+      AddPlatform(PlatformType::Wall, -10.0f, 25.0f, -5.0f, 30.0f, L"stoneWall.png");
+      AddPlatform(PlatformType::Wall, -10.0f, 30.0f, -5.0f, 35.0f, L"stoneWall.png");
+      AddPlatform(PlatformType::Wall, -10.0f, 35.0f, -5.0f, 40.0f, L"stoneWall.png");
+      AddPlatform(PlatformType::Wall, -10.0f, 40.0f, -5.0f, 45.0f, L"stoneWall.png");
+      AddPlatform(PlatformType::Wall, -10.0f, 45.0f, -5.0f, 50.0f, L"stoneWall.png");
+      AddPlatform(PlatformType::Wall, -10.0f, 50.0f, -5.0f, 55.0f, L"stoneWall.png");
+      AddPlatform(PlatformType::Wall, -10.0f, 55.0f, -5.0f, 60.0f, L"stoneWall.png");
 
-        // ㅡ 오른쪽 벽 ㅡ
-        AddPlatform(PlatformType::Wall, 5.0f, -5.0f, 10.0f, 0.0f, L"stoneWall.png");
-        AddPlatform(PlatformType::Wall, 5.0f, 0.0f, 10.0f, 5.0f, L"stoneWall.png");
-        AddPlatform(PlatformType::Wall, 5.0f, 5.0f, 10.0f, 10.0f, L"stoneWall.png");
-        AddPlatform(PlatformType::Wall, 5.0f, 10.0f, 10.0f, 15.0f, L"stoneWall.png");
-        AddPlatform(PlatformType::Wall, 5.0f, 15.0f, 10.0f, 20.0f, L"stoneWall.png");
+      // ㅡ 오른쪽 벽 ㅡ
+      AddPlatform(PlatformType::Wall, 5.0f, -5.0f, 10.0f, 0.0f, L"stoneWall.png");
+      AddPlatform(PlatformType::Wall, 5.0f, 0.0f, 10.0f, 5.0f, L"stoneWall.png");
+      AddPlatform(PlatformType::Wall, 5.0f, 5.0f, 10.0f, 10.0f, L"stoneWall.png");
+      AddPlatform(PlatformType::Wall, 5.0f, 10.0f, 10.0f, 15.0f, L"stoneWall.png");
+      AddPlatform(PlatformType::Wall, 5.0f, 15.0f, 10.0f, 20.0f, L"stoneWall.png");
+      AddPlatform(PlatformType::Wall, 5.0f, 20.0f, 10.0f, 25.0f, L"stoneWall.png");
+      AddPlatform(PlatformType::Wall, 5.0f, 25.0f, 10.0f, 30.0f, L"stoneWall.png");
+      AddPlatform(PlatformType::Wall, 5.0f, 30.0f, 10.0f, 35.0f, L"stoneWall.png");
+      AddPlatform(PlatformType::Wall, 5.0f, 35.0f, 10.0f, 40.0f, L"stoneWall.png");
+      AddPlatform(PlatformType::Wall, 5.0f, 40.0f, 10.0f, 45.0f, L"stoneWall.png");
+      AddPlatform(PlatformType::Wall, 5.0f, 45.0f, 10.0f, 50.0f, L"stoneWall.png");
+      AddPlatform(PlatformType::Wall, 5.0f, 50.0f, 10.0f, 55.0f, L"stoneWall.png");
+      AddPlatform(PlatformType::Wall, 5.0f, 55.0f, 10.0f, 60.0f, L"stoneWall.png");
 
-        AddPlatform(PlatformType::Background, -5.0f, 0.0f, 5.0f, 20.0f, L"background1__.png");
-        AddPlatform(PlatformType::Background, -5.0f, 20.0f, 5.0f, 40.0f, L"background2_.png");
-        AddPlatform(PlatformType::Background, -5.0f, 40.0f, 5.0f, 60.0f, L"background3_.png");
+      AddPlatform(PlatformType::Background, -5.0f, 0.0f, 5.0f, 20.0f, L"background1__.png");
+      AddPlatform(PlatformType::Background, -5.0f, 20.0f, 5.0f, 40.0f, L"background2_.png");
+      AddPlatform(PlatformType::Background, -5.0f, 40.0f, 5.0f, 60.0f, L"background3_.png");
 
-        // ── 바닥 ──
-        AddPlatform(PlatformType::Normal, -5.0f, -5.0f, 5.0f, 0.0f, L"ground2.png");
+      // ── 바닥 ──
+      AddPlatform(PlatformType::Normal, -5.0f, -5.0f, 5.0f, 0.0f, L"ground2.png");
 
-        AddPlatform(PlatformType::Bomb, 1.0f, 1.5f, 2.0f, 1.8f, L"ground1.png");
-        AddPlatform(PlatformType::Normal, 3.0f, 2.5f, 4.0f, 2.8f, L"ground1.png");
-        AddPlatform(PlatformType::Normal, 1.0f, 3.5f, 2.0f, 3.8f, L"ground1.png");
-        AddPlatform(PlatformType::Normal, 3.0f, 4.5f, 4.0f, 4.8f, L"ground1.png");
-        AddPlatform(PlatformType::Normal, 1.0f, 5.5f, 2.0f, 5.8f, L"ground1.png");
-        AddPlatform(PlatformType::Normal, -0.8f, 5.5f, -0.2f, 5.8f, L"ground1.png");
-        AddPlatform(PlatformType::Normal, -2.8f, 5.5f, -2.2f, 5.8f, L"ground1.png");
-        AddPlatform(PlatformType::Normal, -3.8f, 6.5f, -3.2f, 6.8f, L"ground1.png");
-        AddPlatform(PlatformType::Vanishing, -3.8f, 8.2f, -3.2f, 8.5f, L"vanishing1.png");
-        AddPlatform(PlatformType::Normal, -3.8f, 9.9f, -3.2f, 10.2f, L"ground1.png");
-        AddPlatform(PlatformType::Normal, -0.6f, 8.2f, -0.2f, 8.5f, L"ground1.png");
-        AddPlatform(PlatformType::Ice, 1.8f, 8.2f, 2.2f, 8.5f, L"ice1.png");
-        AddPlatform(PlatformType::Ice, 3.8f, 9.7f, 4.2f, 10.0f, L"ice1.png");
-        AddPlatform(PlatformType::Ice, 1.8f, 11.2f, 2.2f, 11.5f, L"ice1.png");
-        AddPlatform(PlatformType::Ice, 3.8f, 12.7f, 4.2f, 13.0f, L"ice1.png");
-        AddPlatform(PlatformType::Moving, -1.0f, 13.7f, 1.2f, 14.0f, L"moving1.png");
-        AddPlatform(PlatformType::Moving, -3.0f, 15.5f, -2.5f, 15.8f, L"moving1.png");
-        AddPlatform(PlatformType::Moving, -1.0f, 17.5f, -0.5f, 17.8f, L"moving1.png");
-        AddPlatform(PlatformType::Moving, -3.0f, 19.5f, -2.5f, 19.8f, L"moving1.png");
-        /*
-        // ── 1층 ──
-        AddPlatform(PlatformType::Normal, -3.0f, 1.5f, 0.0f, 1.8f, L"ground1.png");
-        AddPlatform(PlatformType::Ice, 1.0f, 1.5f, 3.5f, 1.8f, L"ice1.png");
-        AddPlatform(PlatformType::Normal, -1.0f, 3.5f, 2.0f, 3.8f, L"ground1.png");
+      // ── 1층 ──
+      AddPlatform(PlatformType::Normal, -3.0f, 1.5f, 0.0f, 1.8f, L"ground1.png");
+      AddPlatform(PlatformType::Ice, 1.0f, 1.5f, 3.5f, 1.8f, L"ice1.png");
+      AddPlatform(PlatformType::Normal, -1.0f, 3.5f, 2.0f, 3.8f, L"ground1.png");
 
-        // 2층
-        AddPlatform(PlatformType::Normal, -4.0f, 5.0f, -1.5f, 5.3f, L"ground1.png");
-        AddPlatform(PlatformType::Ice, 0.0f, 5.5f, 3.0f, 5.8f, L"ice1.png");
-        AddPlatform(PlatformType::PassThrough, -2.0f, 7.0f, 0.5f, 7.2f, L"passThrough1.png");
-        AddPlatform(PlatformType::Normal, 1.5f, 7.0f, 4.0f, 7.3f, L"ground1.png");
+      // 2층
+      AddPlatform(PlatformType::Normal, -4.0f, 5.0f, -1.5f, 5.3f, L"ground1.png");
+      AddPlatform(PlatformType::Ice, 0.0f, 5.5f, 3.0f, 5.8f, L"ice1.png");
+      AddPlatform(PlatformType::Normal, -2.0f, 7.0f, 0.5f, 7.3f, L"ground1.png");
+      AddPlatform(PlatformType::Normal, 1.5f, 7.0f, 4.0f, 7.3f, L"ground1.png");
 
-        // ── 3층 ──
-        AddPlatform(PlatformType::Normal, -3.5f, 9.0f, -2.0f, 9.2f, L"ground1.png");
-        AddPlatform(PlatformType::Ice, -0.5f, 9.5f, 1.5f, 9.7f, L"ice1.png");
-        AddPlatform(PlatformType::Normal, 2.5f, 10.0f, 4.5f, 10.2f, L"ground1.png");
-        AddPlatform(PlatformType::Vanishing, -1.0f, 11.5f, 1.5f, 11.7f, L"vanishing1.png");
+      // ── 3층 ──
+      AddPlatform(PlatformType::Normal, -3.5f, 9.0f, -2.0f, 9.2f, L"ground1.png");
+      AddPlatform(PlatformType::Ice, -0.5f, 9.5f, 1.5f, 9.7f, L"ice1.png");
+      AddPlatform(PlatformType::Normal, 2.5f, 10.0f, 4.5f, 10.2f, L"ground1.png");
+      AddPlatform(PlatformType::Vanishing, -1.0f, 11.5f, 1.5f, 11.7f, L"vanishing1.png");
 
-        // ── 4층 ──
-        AddPlatform(PlatformType::Reverse, -4.0f, 13.0f, -1.0f, 13.3f, L"reverse1.png");
-        AddPlatform(PlatformType::Ice, 0.5f, 13.5f, 3.5f, 13.8f, L"ice1.png");
-        AddPlatform(PlatformType::Moving, -2.0f, 15.5f, 2.0f, 15.8f, L"moving1.png");
+      // ── 4층 ──
+      AddPlatform(PlatformType::Reverse, -4.0f, 13.0f, -1.0f, 13.3f, L"reverse1.png");
+      AddPlatform(PlatformType::Ice, 0.5f, 13.5f, 3.5f, 13.8f, L"ice1.png");
+      AddPlatform(PlatformType::Moving, -2.0f, 15.5f, 2.0f, 15.8f, L"moving1.png");
 
-        // ───── ❄️ 던전 중층 ─────
+      // ── 5층 ──
+      AddPlatform(PlatformType::Normal, -4.5f, 17.0f, -2.0f, 17.3f, L"ground1.png");
+      AddPlatform(PlatformType::Ice, 2.0f, 17.3f, 4.5f, 17.6f, L"ice1.png");
 
-        // 5층 (얼음 등장 비율 상승)
-        AddPlatform(PlatformType::Normal, -4.0f, 17.0f, -2.0f, 17.3f, L"ground1.png");
-        AddPlatform(PlatformType::Ice, -0.5f, 17.0f, 2.0f, 17.3f, L"ice1.png");
-        AddPlatform(PlatformType::PassThrough, -3.0f, 19.5f, 0.5f, 19.7f, L"passThrough1.png");
-        AddPlatform(PlatformType::Normal, 2.5f, 19.0f, 4.5f, 19.3f, L"ground1.png");
+      // ── 6층 ──
+      AddPlatform(PlatformType::Normal, -3.0f, 19.0f, -1.0f, 19.3f, L"ground1.png");
+      AddPlatform(PlatformType::Normal, 1.0f, 19.5f, 3.0f, 19.8f, L"ground1.png");
 
-        // 6층 (얼음 본격 — 좌우 양쪽이 다 얼음)
-        AddPlatform(PlatformType::Ice, -3.5f, 21.0f, -1.0f, 21.3f, L"ice1.png");
-        AddPlatform(PlatformType::Normal, 1.5f, 21.5f, 3.5f, 21.8f, L"ground1.png");
-        AddPlatform(PlatformType::Ice, -2.0f, 23.5f, 0.5f, 23.8f, L"ice1.png");
-        AddPlatform(PlatformType::PassThrough, 2.0f, 23.5f, 4.0f, 23.7f, L"passThrough1.png");
+      // ── 7층 ──
+      AddPatternPlatform(PlatformType::Normal, -4.5f, 20.5f, -2.5f, 20.8f, L"ground1.png");
+      AddPatternPlatform(PlatformType::Ice, -1.0f, 21.4f, 1.0f, 21.7f, L"ice1.png");
+      AddPatternPlatform(PlatformType::Reverse, 2.0f, 22.4f, 4.0f, 22.7f, L"reverse1.png");
+      AddPatternPlatform(PlatformType::Normal, 0.0f, 23.4f, 2.0f, 23.7f, L"ground1.png");
+      AddPatternPlatform(PlatformType::Ice, -3.0f, 24.4f, -1.0f, 24.7f, L"ice1.png");
 
-        // 7층 (좁아지기 시작, 얼음 정밀 점프)
-        AddPlatform(PlatformType::Normal, -3.0f, 25.0f, -1.5f, 25.3f, L"ground1.png");
-        AddPlatform(PlatformType::Ice, 1.0f, 25.5f, 3.5f, 25.8f, L"ice1.png");
-        AddPlatform(PlatformType::PassThrough, -1.0f, 27.0f, 1.0f, 27.2f, L"passThrough1.png");
-        AddPlatform(PlatformType::Normal, 2.5f, 27.5f, 4.0f, 27.8f, L"ground1.png");
+      // ── 8층 ──
+      AddPlatform(PlatformType::Bomb, -4.5f, 26.0f, -2.5f, 26.3f, L"ground1.png");
+      AddPlatform(PlatformType::Moving, -0.5f, 26.5f, 1.5f, 26.8f, L"moving1.png");
 
-        // ───── 🌳 지상 근접 ─────
+      // ── 9층 ──
+      AddPlatform(PlatformType::Ice, -3.0f, 29.1f, -0.5f, 29.4f, L"ice1.png");
+      AddPlatform(PlatformType::Reverse, 1.5f, 28.5f, 4.0f, 28.8f, L"reverse1.png");
 
-        // 8층 (잔디 위주, 얼음 1개만 잔존)
-        AddPlatform(PlatformType::Normal, -4.0f, 29.0f, -1.5f, 29.3f, L"ground1.png");
-        AddPlatform(PlatformType::Ice, 0.5f, 29.5f, 2.5f, 29.8f, L"ice1.png");
-        AddPlatform(PlatformType::Normal, -2.0f, 31.5f, 1.0f, 31.8f, L"ground1.png");
+      // ── 10층 ──
+      AddPlatform(PlatformType::Bomb, 1.0f, 30.3f, 2.0f, 30.6f, L"ground1.png");
+      AddPlatform(PlatformType::Normal, 3.0f, 31.3f, 4.0f, 31.6f, L"ground1.png");
 
-        // 9층 (좁고 어려움)
-        AddPlatform(PlatformType::Normal, -3.5f, 33.0f, -1.5f, 33.3f, L"ground1.png");
-        AddPlatform(PlatformType::PassThrough, 0.0f, 33.5f, 2.5f, 33.7f, L"passThrough1.png");
-        AddPlatform(PlatformType::Normal, -1.0f, 35.5f, 1.5f, 35.8f, L"ground1.png");
+      // ── 11층 ──
+      AddPlatform(PlatformType::Normal, 1.0f, 32.3f, 2.0f, 32.6f, L"ground1.png");
+      AddPlatform(PlatformType::Normal, 3.0f, 33.3f, 4.0f, 33.6f, L"ground1.png");
 
-        // 10층 (최종 챌린지 — 가장 좁음)
-        AddPlatform(PlatformType::Normal, -2.5f, 37.0f, 0.0f, 37.3f, L"ground1.png");
-        AddPlatform(PlatformType::Ice, 1.0f, 39.1f, 3.5f, 39.4f, L"ice1.png");
-        AddPlatform(PlatformType::Normal, -3.5f, 39.5f, -1.0f, 39.8f, L"ground1.png");
+      // ── 12층 ──
+      AddPlatform(PlatformType::Normal, 1.0f, 34.3f, 2.0f, 34.6f, L"ground1.png");
+      AddPlatform(PlatformType::Normal, -0.8f, 34.3f, -0.2f, 34.6f, L"ground1.png");
+      AddPlatform(PlatformType::Normal, -2.8f, 34.3f, -2.2f, 34.6f, L"ground1.png");
 
-        // ═══════════════════════════════════════════════════════════
-        //  꼭대기 (목표 지점)
-        // ═══════════════════════════════════════════════════════════
-        AddPlatform(PlatformType::Normal, -1.5f, 41.5f, 1.5f, 41.8f, L"ground1.png");
-        // ── 5층 ──
-        AddPlatform(PlatformType::Normal, -4.5f, 17.0f, -2.0f, 17.3f, L"ground1.png");
-        AddPlatform(PlatformType::Ice, 2.0f, 17.3f, 4.5f, 17.6f, L"ice1.png");
+      AddPlatform(PlatformType::Normal, -3.8f, 35.3f, -3.2f, 35.6f, L"ground1.png");
 
-        // ── 6층 ──
-        AddPlatform(PlatformType::Normal, -3.0f, 19.0f, -1.0f, 19.3f, L"ground1.png");
-        AddPlatform(PlatformType::Normal, 1.0f, 19.5f, 3.0f, 19.8f, L"ground1.png");
+      // ── 13층 ──
+      AddPlatform(PlatformType::Vanishing, -3.8f, 37.0f, -3.2f, 37.3f, L"vanishing1.png");
 
-        // ── 7층 ──
-        AddPatternPlatform(PlatformType::Normal, -4.5f, 20.5f, -2.5f, 20.8f, L"ground1.png");
-        AddPatternPlatform(PlatformType::Ice, -1.0f, 21.4f, 1.0f, 21.7f, L"ice1.png");
-        AddPatternPlatform(PlatformType::Reverse, 2.0f, 22.4f, 4.0f, 22.7f, L"reverse1.png");
-        AddPatternPlatform(PlatformType::Normal, 0.0f, 23.4f, 2.0f, 23.7f, L"ground1.png");
-        AddPatternPlatform(PlatformType::Ice, -3.0f, 24.4f, -1.0f, 24.7f, L"ice1.png");
+      AddPlatform(PlatformType::Normal, -1.1f, 37.0f, -0.1f, 37.3f, L"ground1.png");
 
-        // ── 8층 ──
-        AddPlatform(PlatformType::Bomb, -4.5f, 26.0f, -2.5f, 26.3f, L"ground1.png");
-        AddPlatform(PlatformType::Moving, -0.5f, 26.5f, 1.5f, 26.8f, L"moving1.png");
+      AddPlatform(PlatformType::Ice, 1.8f, 37.0f, 2.2f, 37.3f, L"ice1.png");
 
-        // ── 9층 ──
-        AddPlatform(PlatformType::Ice, -3.0f, 29.1f, -0.5f, 29.4f, L"ice1.png");
-        AddPlatform(PlatformType::Reverse, 1.5f, 28.5f, 4.0f, 28.8f, L"reverse1.png");
+      // ── 14층 ──
+      AddPlatform(PlatformType::Ice, 3.8f, 38.5f, 4.2f, 38.8f, L"ice1.png");
 
-        if (PatternPlatforms.size() >= 2)
-        {
-          PatternPlatforms[0]->IsActive = true;
-          PatternPlatforms[0]->Owner->Visible = true;
+      AddPlatform(PlatformType::Ice, 1.8f, 40.0f, 2.2f, 40.3f, L"ice1.png");
 
-          PatternPlatforms[1]->IsActive = true;
-          PatternPlatforms[1]->Owner->Visible = true;
-        }
+      AddPlatform(PlatformType::Ice, 3.4f, 41.5f, 4.2f, 41.8f, L"ice1.png");
 
-        // ── 꼭대기 ──
-        AddPlatform(PlatformType::Normal, -1.5f, 17.5f, 1.5f, 17.8f, L"ground1.png");
-        
+      // ── 15층 ──
+      AddPlatform(PlatformType::Moving, -1.0f, 42.5f, 1.2f, 42.8f, L"moving1.png");
 
-        AddPlatform(PlatformType::Normal, -1.5f, 31.3f, 1.5f, 31.6f, L"ground1.png");
-        */
+      AddPlatform(PlatformType::Moving, -3.0f, 44.3f, -2.5f, 44.6f, L"moving1.png");
+
+      AddPlatform(PlatformType::Moving, -1.0f, 46.3f, -0.5f, 46.6f, L"moving1.png");
+
+      AddPlatform(PlatformType::Moving, -3.0f, 48.3f, -2.5f, 48.6f, L"moving1.png");
+
+      if (PatternPlatforms.size() >= 2)
+      {
+        PatternPlatforms[0]->IsActive = true;
+        PatternPlatforms[0]->Owner->Visible = true;
+
+        PatternPlatforms[1]->IsActive = true;
+        PatternPlatforms[1]->Owner->Visible = true;
+      }
+
+      // ── 꼭대기 (골인) ──
+      AddPlatform(PlatformType::Normal, -1.5f, 49.6f, 1.5f, 49.9f, L"ground1.png");
     }
 
     // ────────────────────────────────────────────────────────
@@ -2447,8 +2436,8 @@ public:
 
         // [클리어 지점] ★ 이 좌표만 바꾸면 골 위치가 바뀝니다.
         //   좌클릭으로 원하는 위치의 월드 좌표를 콘솔에 찍어보고 그 값을 넣으세요.
-        auto* goal = new GameObject(-2.75f, 20.4f);   // 현재 맵 꼭대기 근처
-        goal->Scale = { 2.0f, 0.4f };                 // 닿을 영역 크기
+        auto* goal = new GameObject(0.0f, 50.0f);   // 현재 맵 꼭대기 근처
+        goal->Scale = { 3.3f, 0.85f };                 // 닿을 영역 크기
 
         goal->AddComponent(new MeshRenderer(QuadMesh, matGoal));   // 보이는 마커 //지우면 아예 보이지 않고 판정은 살아있음
 
