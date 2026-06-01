@@ -1323,7 +1323,10 @@ private:
 
 
             if (ItemState && ItemState->PassThroughActive) {
-                if (shielded) return;
+                if (shielded) {
+                    ReverseTimer = 0.0f;
+                    return;
+                }
 
                 if (plat->Type == PlatformType::Ice) OnIce = true;
 
@@ -1412,7 +1415,10 @@ private:
                     Vel.y = 0;
                     OnGround = true;
 
-                    if (shielded) return;
+                    if (shielded) {
+                        ReverseTimer = 0.0f;
+                        return;
+                    }
 
                     if (plat->Type == PlatformType::Ice) OnIce = true;
 
