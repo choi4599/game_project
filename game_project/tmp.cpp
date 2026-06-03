@@ -1,4 +1,4 @@
-/// ============================================================
+﻿/// ============================================================
 //  JumpKing-Style Platformer  |  DirectX 11  |  Single File
 //
 //  ★ 확장 가이드 ★
@@ -46,7 +46,7 @@
 // 조작키 : 방향키(이동), space(점프), f(fly), c/r(checkpoint), esc(종료), 마우스 좌클릭(콘솔 좌표 출력)
 // 추가 : 아이템(랜덤박스 → 룰렛 → 발동), hitSideWall 조건 수정, 공중 JumpCharge 즉시 초기화
 // ============================================================
-
+#define _CRT_SECURE_NO_WARNINGS // 코드 최상단에 배치할 것
 #include <windows.h>
 #include <d3d11.h>
 #include <d3dcompiler.h>
@@ -69,6 +69,71 @@
 
 using namespace DirectX;
 
+
+#include <stdio.h>
+#include <stdarg.h>
+#include <time.h>
+
+enum class LogLevel { Info, Warning, Error };
+
+class Logger
+{
+private:
+    FILE* file;
+    static Logger* instance;
+    Logger() : file(nullptr) {}
+
+public:
+    static Logger* Get()
+    {
+        if (instance == nullptr) instance = new Logger();
+        return instance;
+    }
+
+    bool Initialize(const std::string& filename)
+    {
+        file = fopen(filename.c_str(), "w");
+        return file != nullptr;
+    }
+
+    void Log(LogLevel level, const char* format, ...)
+    {
+        if (file == nullptr) return;
+
+        // 1. 현재 시스템 시간 계산
+        time_t now = time(0);
+        struct tm tstruct;
+        char timeBuf[80];
+        localtime_s(&tstruct, &now);
+        strftime(timeBuf, sizeof(timeBuf), "%Y-%m-%d %H:%M:%S", &tstruct);
+
+        // 2. 로그 레벨 문자열 변환
+        const char* levelStr = "";
+        switch (level)
+        {
+        case LogLevel::Info:    levelStr = "[INFO]"; break;
+        case LogLevel::Warning: levelStr = "[WARN]"; break;
+        case LogLevel::Error:   levelStr = "[ERR ]"; break;
+        }
+
+        // 3. 가변 인자 처리 (printf 스타일)
+        char messageBuf[1024];
+        va_list args;
+        va_start(args, format);
+        vsnprintf(messageBuf, sizeof(messageBuf), format, args);
+        va_end(args);
+
+        // 4. 파일 출력 및 파일 버퍼 즉시 플러시 (크래시 대비)
+        fprintf(file, "%s %s %s\n", timeBuf, levelStr, messageBuf);
+        printf("%s %s %s\n", timeBuf, levelStr, messageBuf);
+        fflush(file);
+    }
+
+    ~Logger() { if (file) fclose(file); }
+};
+
+Logger* Logger::instance = nullptr;
+
 // ============================================================
 //  전방 선언
 // ============================================================
@@ -79,8 +144,8 @@ struct PlayerController;
 // ============================================================
 //  화면 상수
 // ============================================================
-static constexpr int SCREEN_W = 1280;
-static constexpr int SCREEN_H = 720;
+static constexpr int SCREEN_W = 800;
+static constexpr int SCREEN_H = 600;
 
 // ============================================================
 //  물리 상수  ─  게임 느낌 조정은 여기서
@@ -156,10 +221,7 @@ enum class PlatformType {
     PassThrough,
     Vanishing,
     Reverse,
-    Moving,
-    Bomb, 
-    Wall,
-    Background
+    Moving
 };
 
 // ============================================================
@@ -225,7 +287,7 @@ public:
         RECT rc = { 0, 0, Width, Height };
         AdjustWindowRect(&rc, WS_OVERLAPPEDWINDOW, FALSE);
         hWnd = CreateWindow(L"JumpGame",
-            L"Jump Game  [Space:Jump  Arrow:Move  F:Fly  R:Reset  LClick:Coord]",
+            L"Jump Game  [Space:Jump  Arrow:Move  F:Fly  R:Reset  C:Checkpoint  LClick:Coord]",
             WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT,
             rc.right - rc.left, rc.bottom - rc.top,
             NULL, NULL, hInst, NULL);
@@ -362,7 +424,7 @@ ID3D11ShaderResourceView* LoadTextureFromFile(GraphicsContext* gfx,
     if (FAILED(factory->CreateDecoderFromFilename(path, nullptr,
         GENERIC_READ, WICDecodeMetadataCacheOnLoad, &decoder)))
     {
-        printf("[Texture] file load failed: %ls\n", path);
+        printf("[Texture] 파일 열기 실패: %ls\n", path);
         factory->Release();
         return nullptr;
     }
@@ -396,7 +458,7 @@ ID3D11ShaderResourceView* LoadTextureFromFile(GraphicsContext* gfx,
     tex->Release(); converter->Release();
     frame->Release(); decoder->Release(); factory->Release();
 
-    printf("[Texture] load sucess: %ls (%ux%u)\n", path, w, h);
+    printf("[Texture] 로드 성공: %ls (%ux%u)\n", path, w, h);
     return srv;
 }
 
@@ -715,7 +777,7 @@ class PlatformComp : public Component
 {
 public:
     PlatformType Type;
-    
+
     // Moving 플랫폼 시작 위치 저장
     Vec2 StartPos = { 0, 0 };
 
@@ -737,28 +799,12 @@ public:
     // 플레이어가 한번 밟았는지
     bool Triggered = false;
 
-    // Bomb 플랫폼
-    bool IsShaking = false;
-
-    float BombTimer = 0.0f;
-
-    float IdleTime = 2.0f;
-
-    float ShakeTime = 0.7f;
-
-    float OriginX = 0.0f;
-
-    bool HasBouncedPlayer = false;
 
     PlatformComp(PlatformType t) : Type(t) {}
 
     void Start(GraphicsContext* gfx) override
     {
-      // Moving 플랫폼용
-      StartPos = Owner->Pos;
-
-      // Bomb 플랫폼 원래 위치 저장
-      OriginX = Owner->Pos.x;
+        StartPos = Owner->Pos;
     }
 
     void Update(float dt) override
@@ -787,32 +833,6 @@ public:
         {
             MoveTimer += dt * MoveSpeed;
             Owner->Pos.x = StartPos.x + sinf(MoveTimer) * MoveRange;
-        }
-
-        if (Type == PlatformType::Bomb)
-        {
-          BombTimer += dt;
-
-          if (!IsShaking && BombTimer >= IdleTime)
-          {
-            IsShaking = true;
-            HasBouncedPlayer = false;
-          }
-
-          if (IsShaking)
-          {
-            Owner->Pos.x =
-              OriginX + sinf(BombTimer * 50.0f) * 0.08f;
-
-            if (BombTimer >= IdleTime + ShakeTime)
-            {
-              IsShaking = false;
-
-              BombTimer = 0.0f;
-
-              Owner->Pos.x = OriginX;
-            }
-          }
         }
     }
 
@@ -937,7 +957,7 @@ struct RouletteState
 2. 캐릭터 점프 시 캐릭터가 회전 후 바닥에 착지 시 회전률 초기화로 정상적이게 보이게끔 설정
 3. 코요테 타임 추가 -> 캐릭터가 허공에 떠도 0.1초 간 점프를 허용하여 억울하게 추락하는 것을 방지
 4. 공중에서 캐릭터의 위치 제어 기능 (물리 엔진)
-5. 점프 버퍼 -> 착지 직전 0.15초 내에 입력된 점프 명령을 입력하고 착지 즉시 점프가 가능하게끔 구현 
+5. 점프 버퍼 -> 착지 직전 0.15초 내에 입력된 점프 명령을 입력하고 착지 즉시 점프가 가능하게끔 구현
     << 이 부분은 차징 점프여서 굳이 없어도 되지 않을까 싶습니다!
 */
 
@@ -946,16 +966,12 @@ class PlayerController : public Component
 public:
     // ── 외부 주입 ──
     std::vector<GameObject*>* Platforms = nullptr;
-    PlayerItemState* ItemState = nullptr;
-    GameObject* CheckpointFlag = nullptr;
 
     // ── 물리 상태 ──
     Vec2  Vel = { 0, 0 };
     bool  OnGround = false;
     float HalfW = 0.3f;
     float HalfH = 0.3f;
-
-    Vec2 PrevPos = { 0, 0 };
 
     // ── 점프 상태 (충전 시스템) ──
     bool  PrevSpace = false;
@@ -964,12 +980,12 @@ public:
     float JumpCharge = 0.0f;
     bool  JumpedThisPress = false;
 
-    // ── 고급 조작감 타이머 ──
-    float CoyoteTimer = 0.0f;
-    float JumpBufferTimer = 0.0f;
-    float CurrentShakeX = 0.0f;
+    // ── 고급 조작감 타이머 (플랫포머 필수 기술) ──
+    float CoyoteTimer = 0.0f;        // 코요테 타임 
+    float JumpBufferTimer = 0.0f;    // 점프 버퍼링 
+    float CurrentShakeX = 0.0f;      // 흔들림 연출 누적 방지용 변수
 
-    // ── 점프킹 특화 상태 ──
+    // ── 점프킹 특화 상태 (조작 불가) ──
     bool  IsStunned = false;
 
     // ── 입력 ──
@@ -981,28 +997,16 @@ public:
     bool IsReverse() const { return ReverseTimer > 0.0f; }
 
     // ── 튕김(Bounce) 설정 ──
-    float BounceFactor = 0.85f;
-    float MinBounceSpeed = 3.0f;
+    float BounceFactor = 0.85f;   // 튕길 때 보존되는 속도 비율 
+    float MinBounceSpeed = 3.0f;  // 살짝 부딪혀도 무조건 튕겨나가는 최소 속도
     float MaxBounceSpeed = 6.0f;
 
-    // ── 비행 모드 ──
-    bool FlyMode = false;   // DevFly (F키)
-    bool item_flymode = false;   // 아이템 Fly
-
-    // ── 체크포인트 ──
+    // ── 개발 도구 ──
+    bool  FlyMode = false;
     Vec2  Checkpoint = { 0, 0.5f };
 
-    // ── 룰렛 ──
-    RouletteState Roulette;
-
-    // ── 플레이어 상태별 머티리얼 (외부 주입) ──
-    ColorMaterial* MatNormal = nullptr;
-    ColorMaterial* MatFly = nullptr;
-    ColorMaterial* MatPassThrough = nullptr;
-    ColorMaterial* MatShield = nullptr;
-
-    // ── 입력 엣지 감지 ──
-    bool PrevF = false, PrevR = false;
+    // ── 엣지 감지 ──
+    bool PrevF = false, PrevR = false, PrevC = false;
 
     // ────────────────────────────────────────────────────────
     void Input() override
@@ -1014,13 +1018,7 @@ public:
 
         bool fNow = (GetAsyncKeyState('F') & 0x8000) != 0;
         bool rNow = (GetAsyncKeyState('R') & 0x8000) != 0;
-
-        if (GetAsyncKeyState('1') & 0x8000) ItemState->Apply(ItemType::Fly, this);
-        if (GetAsyncKeyState('2') & 0x8000) ItemState->Apply(ItemType::PassThrough, this);
-        if (GetAsyncKeyState('3') & 0x8000) ItemState->Apply(ItemType::Shield, this);
-        if (GetAsyncKeyState('4') & 0x8000) ItemState->Apply(ItemType::Checkpoint, this);
-
-
+        bool cNow = (GetAsyncKeyState('C') & 0x8000) != 0;
 
         MoveInput = 0.0f;
         if (GetAsyncKeyState(VK_LEFT) & 0x8000) MoveInput -= 1.0f;
@@ -1029,114 +1027,44 @@ public:
         if (fNow && !PrevF)
         {
             FlyMode = !FlyMode; Vel = { 0, 0 };
-            printf("[Dev] FlyMode: %s\n", FlyMode ? "ON" : "OFF");
+            // ★ 로거 연동
+            Logger::Get()->Log(LogLevel::Warning, "[Dev] FlyMode Toggle: %s", FlyMode ? "ON" : "OFF");
         }
         if (rNow && !PrevR)
         {
-            if (CheckpointFlag->Active == false) return;
-            if (CheckpointFlag) CheckpointFlag->Active = false;
             Owner->Pos = Checkpoint; Vel = { 0, 0 };
-            printf("[Dev] Reset (%.2f, %.2f)\n", Checkpoint.x, Checkpoint.y);
+            // ★ 로거 연동
+            Logger::Get()->Log(LogLevel::Info, "[Dev] Player Positions Reset to Checkpoint (%.2f, %.2f)", Checkpoint.x, Checkpoint.y);
+        }
+        if (cNow && !PrevC)
+        {
+            Checkpoint = Owner->Pos;
+            // ★ 로거 연동
+            Logger::Get()->Log(LogLevel::Info, "[Dev] Current Progress Saved to Checkpoint (%.2f, %.2f)", Checkpoint.x, Checkpoint.y);
         }
 
-
-        PrevF = fNow; PrevR = rNow;
+        PrevF = fNow; PrevR = rNow; PrevC = cNow;
     }
 
     // ────────────────────────────────────────────────────────
     void Update(float dt) override
     {
-
-        // ── 아이템 효과 갱신 ──
-        if (ItemState) ItemState->Update(dt, this);
-
-        // ── 룰렛 갱신 ──
-        if (Roulette.IsRunning())
-        {
-            bool done = Roulette.Update(dt);
-            if (done && ItemState)
-            {
-                ItemType result = Roulette.GetResult();
-                printf("[RandomBox] Item: type=%d → activated\n", (int)result);
-                ItemState->Apply(result, this);
-            }
-        }
-
-        // ── 머티리얼 전환 ──
-        if (MatNormal)
-        {
-            auto* mr = Owner->GetComponent<MeshRenderer>();
-            if (mr)
-            {
-                if (ItemState && ItemState->FlyActive)         mr->pMat = MatFly;
-                else if (ItemState && ItemState->PassThroughActive) mr->pMat = MatPassThrough;
-                else if (ItemState && ItemState->ShieldActive)      mr->pMat = MatShield;
-                else                                                 mr->pMat = MatNormal;
-            }
-        }
-
-        PrevPos = Owner->Pos;
-
-        const float WALL_RIGHT = 5.0f;
-        const float WALL_LEFT = -5.0f;
-
-        // ── Fly 아이템 발동 중이면 FlyMode 강제 ON ──
-        if (ItemState && ItemState->FlyActive) FlyMode = true;
-
-        if (FlyMode)
-        {
-            UpdateFly(dt);
-            if (item_flymode) ResolveAllCollisions(dt);
-            Owner->Rot += (0.0f - Owner->Rot) * 15.0f * dt;
-            if (Owner->Pos.x + HalfW > WALL_RIGHT)
-                Owner->Pos.x = WALL_RIGHT - HalfW;
-            else if (Owner->Pos.x - HalfW < WALL_LEFT)
-                Owner->Pos.x = WALL_LEFT + HalfW;
-
-            if (Owner->Pos.y < 0.3)
-                Owner->Pos.y = 0.3;
-            if (Owner->Pos.y > 53.0f)
-                Owner->Pos.y = 53.0f;
-            return;
-
-        }
+        if (FlyMode) { UpdateFly(dt); return; }
 
         Vel.y += GRAVITY * dt;
 
-        if (ReverseTimer > 0.0f) ReverseTimer -= dt;
+        if (ReverseTimer > 0.0f)
+        {
+            ReverseTimer -= dt;
+            if (ReverseTimer <= 0.0f)
+            {
+                Logger::Get()->Log(LogLevel::Info, "[Status] Input Reverse Effect Expired.");
+            }
+        }
 
         UpdateMovement(dt);
         UpdateJump(dt);
-        
-        if (Owner->Pos.y > 53.0f)
-            Owner->Pos.y = 53.0f;
 
-        if (Owner->Pos.x + HalfW > WALL_RIGHT)
-        {
-            Owner->Pos.x = WALL_RIGHT - HalfW;   // 위치 보정
-            if (Vel.x > 0.0f)                    // 오른쪽으로 이동 중일 때만 반전
-            {
-                float speed = max(MinBounceSpeed, Vel.x);
-                float bouncedSpeed = min(speed * 1.3, MaxBounceSpeed);
-                Vel.x = -bouncedSpeed;
-                if (Vel.y > 0.0f) Vel.y *= 0.6f;
-            }
-        }
-        else if (Owner->Pos.x - HalfW < WALL_LEFT)
-        {
-            Owner->Pos.x = WALL_LEFT + HalfW;    // 위치 보정
-            if (Vel.x < 0.0f)                    // 왼쪽으로 이동 중일 때만 반전
-            {
-                float speed = max(MinBounceSpeed, -Vel.x);
-                float bouncedSpeed = min(speed * 1.3, MaxBounceSpeed);
-                Vel.x = bouncedSpeed;
-                if (Vel.y > 0.0f) Vel.y *= 0.6f;
-            }
-        }
-
-
-
-        // 순수 물리 이동만 적용
         Owner->Pos.x += Vel.x * dt;
         Owner->Pos.y += Vel.y * dt;
 
@@ -1153,12 +1081,17 @@ public:
             CurrentShakeX = 0.0f;
         }
 
-        if (!OnGround) Owner->Rot -= Vel.x * 3.0f * dt;
-        else           Owner->Rot += (0.0f - Owner->Rot) * 15.0f * dt;
+        if (!OnGround)
+        {
+            Owner->Rot -= Vel.x * 3.0f * dt;
+        }
+        else
+        {
+            Owner->Rot += (0.0f - Owner->Rot) * 15.0f * dt;
+        }
     }
 
 private:
-    // ── 수평 이동 ────────────────────────────────────────────
     void UpdateMovement(float dt)
     {
         if (SpaceHeld && OnGround && !IsStunned)
@@ -1167,7 +1100,7 @@ private:
             else       Vel.x += (0.0f - Vel.x) * BRAKE_ACCEL * dt;
             return;
         }
-        
+
         if (OnGround)
         {
             if (OnIce)
@@ -1181,7 +1114,8 @@ private:
             }
             else if (IsReverse())
             {
-                float reverseInput = -MoveInput;
+                float reverseInput = IsReverse() ? -MoveInput : MoveInput;
+
                 if (reverseInput != 0.0f && !IsStunned)
                 {
                     Vel.x += reverseInput * GROUND_ACCEL * dt;
@@ -1190,8 +1124,8 @@ private:
                 else
                 {
                     float decel = GROUND_DECEL * dt;
-                    if (Vel.x > 0) Vel.x = max(0.0f, Vel.x - decel);
-                    else           Vel.x = min(0.0f, Vel.x + decel);
+                    if (Vel.x > 0)  Vel.x = max(0.0f, Vel.x - decel);
+                    else            Vel.x = min(0.0f, Vel.x + decel);
                 }
             }
             else
@@ -1225,13 +1159,12 @@ private:
             }
             else
             {
-                if (Vel.x > 0) Vel.x = max(0.0f, Vel.x - airDecel * dt);
-                else           Vel.x = min(0.0f, Vel.x + airDecel * dt);
+                if (Vel.x > 0)  Vel.x = max(0.0f, Vel.x - airDecel * dt);
+                else            Vel.x = min(0.0f, Vel.x + airDecel * dt);
             }
         }
     }
 
-    // ── 점프 (코요테 타임 & 버퍼링 적용) ────────────────────
     void UpdateJump(float dt)
     {
         if (OnGround) CoyoteTimer = 0.1f;
@@ -1245,7 +1178,9 @@ private:
         if (canJump)
         {
             if ((SpaceHeld || JumpBufferTimer > 0.0f) && !JumpedThisPress)
+            {
                 JumpCharge = min(JumpCharge + JUMP_CHARGE * dt, 1.0f);
+            }
 
             if (!SpaceHeld && JumpCharge > 0.0f)
             {
@@ -1254,6 +1189,9 @@ private:
 
                 float jumpInput = IsReverse() ? -MoveInput : MoveInput;
                 Vel.x = jumpInput * MOVE_SPEED;
+
+                // ★ 점프 발사 로그 트래킹
+                Logger::Get()->Log(LogLevel::Info, "[Physics] Jump Active. Charge: %.1f%%, InitVel: (%.2f, %.2f)", JumpCharge * 100.0f, Vel.x, Vel.y);
 
                 JumpCharge = 0.0f;
                 JumpedThisPress = true;
@@ -1265,19 +1203,15 @@ private:
         }
         else
         {
-            // ★ 수정: 공중으로 떨어지는 순간 차징값 즉시 초기화
-            JumpCharge = 0.0f;
             if (!SpaceHeld) JumpedThisPress = false;
         }
     }
 
-    // ── 충돌 해결 ────────────────────────────────────────────
     void ResolveAllCollisions(float dt)
     {
-
         OnGround = false;
         OnIce = false;
-        
+
         if (!Platforms) return;
         for (auto* go : *Platforms)
         {
@@ -1288,169 +1222,124 @@ private:
 
     void ResolveCollision(PlatformComp* plat, float dt)
     {
-        // 1. Background: 충돌 판정 완전 무시
-        if (plat->Type == PlatformType::Background) return;
-
         AABB player = GetAABB();
         AABB platform = plat->GetAABB();
 
         if (!plat->IsActive) return;
         if (!player.Overlaps(platform)) return;
 
-        bool shielded = (ItemState && ItemState->ShieldActive);
-
-        float oL = player.right - platform.left;
-        float oR = platform.right - player.left;
-        float oB = player.top - platform.bottom;
-        float oT = platform.top - player.bottom;
-        float minO = min(min(oL, oR), min(oB, oT));
-        float prevBottom = PrevPos.y - HalfH;
-
-        bool fromAbove = (prevBottom >= platform.top - 0.01f);
-       
-
-        // ── PassThrough 플랫폼 타입 OR 아이템 PassThrough ──
-        if (plat->Type == PlatformType::PassThrough ||
-            (ItemState && ItemState->PassThroughActive&& plat->Type != PlatformType::Wall))
+        // ── 투과 플랫폼(PassThrough) 충돌 판정 ──
+        if (plat->Type == PlatformType::PassThrough)
         {
+            float penetrationY = platform.top - player.bottom;
+            float marginX = HalfW * 0.5f;
+            bool isWithinX = (player.right - marginX > platform.left) &&
+                (player.left + marginX < platform.right);
 
-            if (minO == oT && Vel.y <= 0.0f && fromAbove)
+            if (isWithinX && Vel.y <= 0.0f && penetrationY > 0.0f && penetrationY <= max(0.2f, -Vel.y * dt * 2.0f))
             {
                 Owner->Pos.y = platform.top + HalfH;
                 Vel.y = 0;
                 OnGround = true;
-            }
+                ReverseTimer = 0.0f;
 
-
-            if (ItemState && ItemState->PassThroughActive) {
-                if (shielded) {
-                    ReverseTimer = 0.0f;
-                    return;
-                }
-
-                if (plat->Type == PlatformType::Ice) OnIce = true;
-
-                if (plat->Type == PlatformType::Reverse)
-                    ReverseTimer = 2.0f;
-                else
-                    ReverseTimer = 0.0f;
-
-                if (plat->Type == PlatformType::Vanishing)
-                    plat->Triggered = true;
-                
-                if (plat->Type == PlatformType::Bomb && plat->IsShaking && !plat->HasBouncedPlayer)
-                {
-                    plat->HasBouncedPlayer = true;
-
-                    Vel.y = 12.0f;
-
-                    float dir =
-                        (rand() % 2 == 0) ? -1.0f : 1.0f;
-
-                    Vel.x = dir * 6.0f;
-
-                    OnGround = false;
-                }
+                Logger::Get()->Log(LogLevel::Info, "[Collision] Landed on PassThrough platform securely.");
             }
             return;
         }
 
+        // ── 일반 및 특수 발판 충돌 해결 (매운맛 핀볼 모션) ──
+        float oL = player.right - platform.left;
+        float oR = platform.right - player.left;
+        float oB = player.top - platform.bottom;
+        float oT = platform.top - player.bottom;
 
-
-
+        float minO = min(min(oL, oR), min(oB, oT));
         const float HORIZONTAL_BOUNCE = 1.3f;
 
-        // 수정: minO != oB 조건 추가
-        bool hitSideWall = (minO == oL || minO == oR) ||
-            (abs(Vel.x) > 1.0f && minO != oT && minO != oB);
+        bool hitSideWall = (minO == oL || minO == oR) || (abs(Vel.x) > 1.0f && minO != oT);
 
-        // --- ResolveCollision 함수 내부의 벽 충돌 분기문 수정 ---
+        i// --- ResolveCollision 함수 내부의 벽 충돌 분기문 수정 ---
 
-        if (hitSideWall && !OnGround)
-        {
-            if (oL < oR) // 왼쪽 벽 옆구리 박음 (오른쪽 이동 중 -> 왼쪽으로 튕김)
+            if (hitSideWall && !OnGround)
             {
-                Owner->Pos.x = platform.left - HalfW;
-                if (Vel.x >= 0.0f)
+                if (oL < oR) // 왼쪽 벽 옆구리 박음 (오른쪽 이동 중 -> 왼쪽으로 튕김)
                 {
-                    float speed = max(MinBounceSpeed, Vel.x);
-                    // 1. 우선 원래 설계대로 1.3배 증폭 계산
-                    float bouncedSpeed = speed * HORIZONTAL_BOUNCE;
-
-                    // 2. ★ 최대 증폭값 클램프 (MaxBounceSpeed를 넘지 않도록 제한)
-                    if (bouncedSpeed > MaxBounceSpeed) bouncedSpeed = MaxBounceSpeed;
-
-                    // 3. 최종 속도 적용 (왼쪽 방향이므로 마이너스)
-                    Vel.x = -bouncedSpeed;
-
-                    if (Vel.y > 0.0f) Vel.y *= 0.6f;
-                }
-            }
-            else // 오른쪽 벽 옆구리 박음 (왼쪽 이동 중 -> 오른쪽으로 튕김)
-            {
-                Owner->Pos.x = platform.right + HalfW;
-                if (Vel.x <= 0.0f)
-                {
-                    float speed = max(MinBounceSpeed, -Vel.x);
-                    // 1. 우선 원래 설계대로 1.3배 증폭 계산
-                    float bouncedSpeed = speed * HORIZONTAL_BOUNCE;
-
-                    // 2. ★ 최대 증폭값 클램프
-                    if (bouncedSpeed > MaxBounceSpeed) bouncedSpeed = MaxBounceSpeed;
-
-                    // 3. 최종 속도 적용 (오른쪽 방향이므로 플러스)
-                    Vel.x = bouncedSpeed;
-
-                    if (Vel.y > 0.0f) Vel.y *= 0.6f;
-                }
-            }
-        }
-        else
-        {
-            if (minO == oT)
-            {
-                if (Vel.y <= 0.0f)
-                {
-                    Owner->Pos.y = platform.top + HalfH;
-                    Vel.y = 0;
-                    OnGround = true;
-
-                    if (shielded) {
-                        ReverseTimer = 0.0f;
-                        return;
-                    }
-
-                    if (plat->Type == PlatformType::Ice) OnIce = true;
-
-                    if (plat->Type == PlatformType::Reverse)
-                        ReverseTimer = 2.0f;
-                    else
-                        ReverseTimer = 0.0f;
-
-                    if (plat->Type == PlatformType::Vanishing)
-                        plat->Triggered = true;
-
-                    if (plat->Type == PlatformType::Bomb && plat->IsShaking && !plat->HasBouncedPlayer)
+                    Owner->Pos.x = platform.left - HalfW;
+                    if (Vel.x >= 0.0f)
                     {
-                      plat->HasBouncedPlayer = true;
+                        float speed = max(MinBounceSpeed, Vel.x);
+                        // 1. 우선 원래 설계대로 1.3배 증폭 계산
+                        float bouncedSpeed = speed * HORIZONTAL_BOUNCE;
 
-                      Vel.y = 12.0f;
+                        // 2. ★ 최대 증폭값 클램프 (MaxBounceSpeed를 넘지 않도록 제한)
+                        if (bouncedSpeed > MaxBounceSpeed) bouncedSpeed = MaxBounceSpeed;
 
-                      float dir =
-                        (rand() % 2 == 0) ? -1.0f : 1.0f;
+                        // 3. 최종 속도 적용 (왼쪽 방향이므로 마이너스)
+                        Vel.x = -bouncedSpeed;
 
-                      Vel.x = dir * 6.0f;
+                        if (Vel.y > 0.0f) Vel.y *= 0.6f;
+                    }
+                }
+                else // 오른쪽 벽 옆구리 박음 (왼쪽 이동 중 -> 오른쪽으로 튕김)
+                {
+                    Owner->Pos.x = platform.right + HalfW;
+                    if (Vel.x <= 0.0f)
+                    {
+                        float speed = max(MinBounceSpeed, -Vel.x);
+                        // 1. 우선 원래 설계대로 1.3배 증폭 계산
+                        float bouncedSpeed = speed * HORIZONTAL_BOUNCE;
 
-                      OnGround = false;
+                        // 2. ★ 최대 증폭값 클램프
+                        if (bouncedSpeed > MaxBounceSpeed) bouncedSpeed = MaxBounceSpeed;
+
+                        // 3. 최종 속도 적용 (오른쪽 방향이므로 플러스)
+                        Vel.x = bouncedSpeed;
+
+                        if (Vel.y > 0.0f) Vel.y *= 0.6f;
                     }
                 }
             }
-            else if (minO == oB)
+            else
             {
-                Owner->Pos.y = platform.bottom - HalfH;
-                if (Vel.y > 0.0f) Vel.y = -Vel.y * BounceFactor;
+                if (minO == oT) // 지면 착지
+                {
+                    if (Vel.y <= 0.0f)
+                    {
+                        Owner->Pos.y = platform.top + HalfH;
+                        Vel.y = 0;
+                        OnGround = true;
+                        if (plat->Type == PlatformType::Ice) OnIce = true;
+
+                        if (plat->Type == PlatformType::Reverse)
+                        {
+                            ReverseTimer = 2.0f;
+                            Logger::Get()->Log(LogLevel::Warning, "[Status] Reverse Platform Stepped! Controls inverted for 2.0s.");
+                        }
+                        else
+                        {
+                            ReverseTimer = 0.0f;
+                        }
+
+                        if (plat->Type == PlatformType::Vanishing)
+                        {
+                            plat->Triggered = true;
+                            Logger::Get()->Log(LogLevel::Warning, "[Trigger] Vanishing Platform Triggered! Decay clock ticking.");
+                        }
+                    }
+                }
+                else if (minO == oB) // 천장 박음
+                {
+                    Owner->Pos.y = platform.bottom - HalfH;
+                    if (Vel.y > 0.0f)
+                    {
+                        float prevY = Vel.y;
+                        Vel.y = -Vel.y * BounceFactor;
+
+                        Logger::Get()->Log(LogLevel::Warning, "[Collision] Ceiling Crash! Vector.y: %.2f -> %.2f", prevY, Vel.y);
+                    }
+                }
             }
-        }
     }
 
     void UpdateFly(float dt)
@@ -1460,18 +1349,8 @@ private:
         if (GetAsyncKeyState(VK_RIGHT) & 0x8000) dir.x += 1.0f;
         if (GetAsyncKeyState(VK_UP) & 0x8000) dir.y += 1.0f;
         if (GetAsyncKeyState(VK_DOWN) & 0x8000) dir.y -= 1.0f;
-
-
-        if (item_flymode) {
-            Owner->Pos.x += dir.x * FLY_ITEM_SPEED * dt;
-            Owner->Pos.y += dir.y * FLY_ITEM_SPEED * dt;
-        }
-        else {
-            Owner->Pos.x += dir.x * FLY_SPEED * dt;
-            Owner->Pos.y += dir.y * FLY_SPEED * dt;
-        }
-
-
+        Owner->Pos.x += dir.x * FLY_SPEED * dt;
+        Owner->Pos.y += dir.y * FLY_SPEED * dt;
         Vel = { 0, 0 };
         IsStunned = false;
     }
@@ -1499,19 +1378,19 @@ inline void PlayerItemState::Apply(ItemType type, PlayerController* pc)
         pc->FlyMode = true;
         pc->Vel = { 0, 0 };
         pc->item_flymode = true;
-        printf("[Item] Fly activated %.1fs\n", ITEM_FLY_DURATION);
+        printf("[Item] Fly 발동 %.1fs\n", ITEM_FLY_DURATION);
         break;
 
     case ItemType::PassThrough:
         PassThroughActive = true;
         PassThroughTimer = ITEM_PASSTHROUGH_DURATION;
-        printf("[Item] PassThrough activated %.1fs\n", ITEM_PASSTHROUGH_DURATION);
+        printf("[Item] PassThrough 발동 %.1fs\n", ITEM_PASSTHROUGH_DURATION);
         break;
 
     case ItemType::Shield:
         ShieldActive = true;
         ShieldTimer = ITEM_SHIELD_DURATION;
-        printf("[Item] Shield activated %.1fs\n", ITEM_SHIELD_DURATION);
+        printf("[Item] Shield 발동 %.1fs\n", ITEM_SHIELD_DURATION);
         break;
 
     case ItemType::Checkpoint:
@@ -1523,7 +1402,7 @@ inline void PlayerItemState::Apply(ItemType type, PlayerController* pc)
             pc->CheckpointFlag->Active = true;
             pc->CheckpointFlag->Pos = { pc->Owner->Pos.x, pc->Owner->Pos.y - 0.1f };
         }
-        printf("[Item] Checkpoint installation (%.2f, %.2f)\n", CheckpointPos.x, CheckpointPos.y);
+        printf("[Item] Checkpoint 설치 (%.2f, %.2f)\n", CheckpointPos.x, CheckpointPos.y);
         break;
 
     default: break;
@@ -1542,7 +1421,7 @@ inline void PlayerItemState::Update(float dt, PlayerController* pc)
             pc->FlyMode = false;
             pc->Vel = { 0, 0 };
             pc->item_flymode = false;
-            printf("[Item] Fly end\n");
+            printf("[Item] Fly 종료\n");
         }
     }
     if (PassThroughActive)
@@ -1552,7 +1431,7 @@ inline void PlayerItemState::Update(float dt, PlayerController* pc)
         {
             PassThroughActive = false;
             PassThroughTimer = 0.0f;
-            printf("[Item] PassThrough end\n");
+            printf("[Item] PassThrough 종료\n");
         }
     }
     if (ShieldActive)
@@ -1562,7 +1441,7 @@ inline void PlayerItemState::Update(float dt, PlayerController* pc)
         {
             ShieldActive = false;
             ShieldTimer = 0.0f;
-            printf("[Item] Shield end\n");
+            printf("[Item] Shield 종료\n");
         }
     }
 }
@@ -1783,118 +1662,19 @@ public:
     GameObject* Player = nullptr;
     PlayerController* PC = nullptr;
 
-    float RespawnTimer = 0.0f;
-    static constexpr float RESPAWN_DURATION = 30.0f;
-
     void Update(float dt) override
     {
-        if (Picked)
-        {
-            RespawnTimer += dt;
-            if (RespawnTimer >= RESPAWN_DURATION)
-            {
-                Picked = false;
-                RespawnTimer = 0.0f;
-                Owner->Visible = true;
-                printf("[RandomBox] regenerated!\n");
-            }
-            return;
-        }
-
-        if (!Player || !PC) return;
+        if (Picked || !Player || !PC) return;
         float dx = Owner->Pos.x - Player->Pos.x;
         float dy = Owner->Pos.y - Player->Pos.y;
-        if (sqrtf(dx * dx + dy * dy) < ITEM_PICKUP_RADIUS&& !PC->Roulette.Active && !PC->Roulette.ShowResult)
+        if (sqrtf(dx * dx + dy * dy) < ITEM_PICKUP_RADIUS)
         {
             Picked = true;
-            RespawnTimer = 0.0f;   // 타이머 초기화
-            Owner->Visible = false;
+            Owner->Active = false;
             PC->Roulette.Start();
-            printf("[RandomBox] Start roulette!\n");
+            printf("[RandomBox] 룰렛 시작!\n");
         }
     }
-};
-
-// ============================================================
-//  GoalComp  ─  클리어 "판정" (독립 시스템)
-//   · 골 위치는 BuildGoal 에서 좌표 데이터로만 지정
-//   · 플레이어가 골 영역에 닿으면 *Cleared 를 한 번만 true 로
-//   · 맵을 확장해도 이 로직은 건드릴 필요 없음 (위치만 옮기면 됨)
-// ============================================================
-class GoalComp : public Component
-{
-public:
-    GameObject* Player = nullptr;   // 주입
-    bool* Cleared = nullptr;   // 주입 (GameLoop 소유)
-
-    AABB GetAABB() const
-    {
-        float hw = Owner->Scale.x * 0.5f;
-        float hh = Owner->Scale.y * 0.5f;
-        return { Owner->Pos.x - hw, Owner->Pos.x + hw,
-                 Owner->Pos.y - hh, Owner->Pos.y + hh };
-    }
-
-    void Update(float dt) override
-    {
-        if (!Player || !Cleared || *Cleared) return;   // 이미 클리어면 무시
-
-        auto* pc = Player->GetComponent<PlayerController>();
-        float phw = pc ? pc->HalfW : Player->Scale.x * 0.5f;
-        float phh = pc ? pc->HalfH : Player->Scale.y * 0.5f;
-        AABB p = { Player->Pos.x - phw, Player->Pos.x + phw,
-                   Player->Pos.y - phh, Player->Pos.y + phh };
-
-        if (p.Overlaps(GetAABB()))
-        {
-            *Cleared = true;
-            printf("[Game] >>> MISSION COMPLETE <<<\n");
-        }
-    }
-};
-
-// ============================================================
-//  MissionBanner  ─  클리어 "표시" (화면 정중앙 배너)
-//   · Cleared 가 true 일 때만 mission_complete.png 를 카메라 중앙에 그림
-//   · 카메라 위치에 그리므로 항상 화면 한가운데에 뜸
-// ============================================================
-class MissionBanner : public Component
-{
-    ID3D11Buffer* CB = nullptr;
-public:
-    Camera* Cam = nullptr;   // 주입
-    bool* Cleared = nullptr;   // 주입
-    ColorMaterial* Mat = nullptr;   // MISSION COMPLETE 텍스처
-    Mesh* Quad = nullptr;
-    float          Width = 10.0f;      // 배너 가로(월드 단위)
-    float          Height = 2.5f;     // 배너 세로  (4:1 비율)
-
-    void Start(GraphicsContext* gfx) override
-    {
-        D3D11_BUFFER_DESC bd = {};
-        bd.Usage = D3D11_USAGE_DEFAULT;
-        bd.ByteWidth = sizeof(CbWorld);
-        bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-        gfx->Device->CreateBuffer(&bd, nullptr, &CB);
-    }
-
-    void Render(GraphicsContext* gfx) override
-    {
-        if (!Cleared || !*Cleared || !Cam || !Mat || !Quad || !CB) return;
-
-        Mat->Bind(gfx);
-        // 화면 정중앙 = 카메라 위치 (셰이더가 camOffset 기준으로 좌표 변환하므로)
-        XMMATRIX world = XMMatrixScaling(Width, Height, 1.0f)
-            * XMMatrixTranslation(Cam->Pos.x, Cam->Pos.y, 0.0f);
-        CbWorld cb = { XMMatrixTranspose(world) };
-        gfx->Context->UpdateSubresource(CB, 0, nullptr, &cb, 0, 0);
-        gfx->Context->VSSetConstantBuffers(0, 1, &CB);
-        UINT stride = sizeof(Vertex), offset = 0;
-        gfx->Context->IASetVertexBuffers(0, 1, &Quad->VB, &stride, &offset);
-        gfx->Context->Draw(Quad->Count, 0);
-    }
-
-    ~MissionBanner() override { if (CB) CB->Release(); }
 };
 
 // ============================================================
@@ -1909,7 +1689,6 @@ public:
     Camera                   Cam;
     TextureCache             TexCache;
     bool                     Running = true;
-    bool Cleared = false;
 
     std::vector<GameObject*> World;
     std::vector<GameObject*> Platforms;
@@ -1943,14 +1722,6 @@ public:
     std::vector<Material*> OwnedMaterials;
 
     bool MousePressed = false;
-
-    // 패턴 플랫폼
-    std::vector<PlatformComp*> PatternPlatforms;
-
-    float PatternTimer = 0.0f;
-    float PatternInterval = 1.5f;
-
-    int PatternIndex = 0;
 
     GameLoop() { printf("[Engine] GameLoop Created.\n"); }
 
@@ -2080,7 +1851,6 @@ public:
         BuildRandomBoxes();
         BuildFlag();
         BuildPlayer();
-        BuildGoal();
 
         // 플레이어 → 랜덤박스에 주입
         if (!World.empty())
@@ -2097,9 +1867,9 @@ public:
         printf("[Engine] Ready.\n");
         printf("  Arrow L/R : Move\n");
         printf("  Space     : Jump (hold = charge, release = launch)\n");
-        printf("  F : Fly   R : Checkpoint Reset   ESC : Quit\n");
+        printf("  F : Fly   R : Reset   C : Checkpoint   ESC : Quit\n");
         printf("  LClick : Print world coord\n");
-        printf("  [ITEM] Fly  PassThrough  Shield  Checkpoint\n");
+        printf("  [아이템] 하늘=Fly  초록=PassThrough  빨강=Shield  노랑=Checkpoint\n");
         return true;
     }
 
@@ -2112,137 +1882,47 @@ public:
     // ────────────────────────────────────────────────────────
     void BuildMap()
     {
-      // ㅡ 왼쪽 벽 ㅡ
-      AddPlatform(PlatformType::Wall, -10.0f, -5.0f, -5.0f, 0.0f, L"stoneWall.png");
-      AddPlatform(PlatformType::Wall, -10.0f, 0.0f, -5.0f, 5.0f, L"stoneWall.png");
-      AddPlatform(PlatformType::Wall, -10.0f, 5.0f, -5.0f, 10.0f, L"stoneWall.png");
-      AddPlatform(PlatformType::Wall, -10.0f, 10.0f, -5.0f, 15.0f, L"stoneWall.png");
-      AddPlatform(PlatformType::Wall, -10.0f, 15.0f, -5.0f, 20.0f, L"stoneWall.png");
-      AddPlatform(PlatformType::Wall, -10.0f, 20.0f, -5.0f, 25.0f, L"stoneWall.png");
-      AddPlatform(PlatformType::Wall, -10.0f, 25.0f, -5.0f, 30.0f, L"stoneWall.png");
-      AddPlatform(PlatformType::Wall, -10.0f, 30.0f, -5.0f, 35.0f, L"stoneWall.png");
-      AddPlatform(PlatformType::Wall, -10.0f, 35.0f, -5.0f, 40.0f, L"stoneWall.png");
-      AddPlatform(PlatformType::Wall, -10.0f, 40.0f, -5.0f, 45.0f, L"stoneWall.png");
-      AddPlatform(PlatformType::Wall, -10.0f, 45.0f, -5.0f, 50.0f, L"stoneWall.png");
-      AddPlatform(PlatformType::Wall, -10.0f, 50.0f, -5.0f, 55.0f, L"stoneWall.png");
-      AddPlatform(PlatformType::Wall, -10.0f, 55.0f, -5.0f, 60.0f, L"stoneWall.png");
+        // ㅡ 왼쪽 벽 ㅡ
+        AddPlatform(PlatformType::Normal, -10.0f, -5.0f, -5.0f, 0.0f, L"stoneWall.png");
+        AddPlatform(PlatformType::Normal, -10.0f, 0.0f, -5.0f, 5.0f, L"stoneWall.png");
+        AddPlatform(PlatformType::Normal, -10.0f, 5.0f, -5.0f, 10.0f, L"stoneWall.png");
+        AddPlatform(PlatformType::Normal, -10.0f, 10.0f, -5.0f, 15.0f, L"stoneWall.png");
+        AddPlatform(PlatformType::Normal, -10.0f, 15.0f, -5.0f, 20.0f, L"stoneWall.png");
 
-      // ㅡ 오른쪽 벽 ㅡ
-      AddPlatform(PlatformType::Wall, 5.0f, -5.0f, 10.0f, 0.0f, L"stoneWall.png");
-      AddPlatform(PlatformType::Wall, 5.0f, 0.0f, 10.0f, 5.0f, L"stoneWall.png");
-      AddPlatform(PlatformType::Wall, 5.0f, 5.0f, 10.0f, 10.0f, L"stoneWall.png");
-      AddPlatform(PlatformType::Wall, 5.0f, 10.0f, 10.0f, 15.0f, L"stoneWall.png");
-      AddPlatform(PlatformType::Wall, 5.0f, 15.0f, 10.0f, 20.0f, L"stoneWall.png");
-      AddPlatform(PlatformType::Wall, 5.0f, 20.0f, 10.0f, 25.0f, L"stoneWall.png");
-      AddPlatform(PlatformType::Wall, 5.0f, 25.0f, 10.0f, 30.0f, L"stoneWall.png");
-      AddPlatform(PlatformType::Wall, 5.0f, 30.0f, 10.0f, 35.0f, L"stoneWall.png");
-      AddPlatform(PlatformType::Wall, 5.0f, 35.0f, 10.0f, 40.0f, L"stoneWall.png");
-      AddPlatform(PlatformType::Wall, 5.0f, 40.0f, 10.0f, 45.0f, L"stoneWall.png");
-      AddPlatform(PlatformType::Wall, 5.0f, 45.0f, 10.0f, 50.0f, L"stoneWall.png");
-      AddPlatform(PlatformType::Wall, 5.0f, 50.0f, 10.0f, 55.0f, L"stoneWall.png");
-      AddPlatform(PlatformType::Wall, 5.0f, 55.0f, 10.0f, 60.0f, L"stoneWall.png");
+        // ㅡ 오른쪽 벽 ㅡ
+        AddPlatform(PlatformType::Normal, 5.0f, -5.0f, 10.0f, 0.0f, L"stoneWall.png");
+        AddPlatform(PlatformType::Normal, 5.0f, 0.0f, 10.0f, 5.0f, L"stoneWall.png");
+        AddPlatform(PlatformType::Normal, 5.0f, 5.0f, 10.0f, 10.0f, L"stoneWall.png");
+        AddPlatform(PlatformType::Normal, 5.0f, 10.0f, 10.0f, 15.0f, L"stoneWall.png");
+        AddPlatform(PlatformType::Normal, 5.0f, 15.0f, 10.0f, 20.0f, L"stoneWall.png");
 
-      AddPlatform(PlatformType::Background, -5.0f, 0.0f, 5.0f, 20.0f, L"background1__.png");
-      AddPlatform(PlatformType::Background, -5.0f, 20.0f, 5.0f, 40.0f, L"background2_.png");
-      AddPlatform(PlatformType::Background, -5.0f, 40.0f, 5.0f, 60.0f, L"background3_.png");
+        // ── 바닥 ──
+        AddPlatform(PlatformType::Normal, -5.0f, -5.0f, 5.0f, 0.0f, L"ground2.png");
 
-      // ── 바닥 ──
-      AddPlatform(PlatformType::Normal, -5.0f, -5.0f, 5.0f, 0.0f, L"ground2.png");
+        // ── 1층 ──
+        AddPlatform(PlatformType::Normal, -3.0f, 1.5f, 0.0f, 1.8f, L"ground1.png");
+        AddPlatform(PlatformType::Ice, 1.0f, 1.5f, 3.5f, 1.8f, L"ice1.png");
+        AddPlatform(PlatformType::Normal, -1.0f, 3.5f, 2.0f, 3.8f, L"ground1.png");
 
-      // ── 1층 ──
-      AddPlatform(PlatformType::Normal, -3.0f, 1.5f, 0.0f, 1.8f, L"ground1.png");
-      AddPlatform(PlatformType::Ice, 1.0f, 1.5f, 3.5f, 1.8f, L"ice1.png");
-      AddPlatform(PlatformType::Normal, -1.0f, 3.5f, 2.0f, 3.8f, L"ground1.png");
+        // ── 2층 ──
+        AddPlatform(PlatformType::Normal, -4.0f, 5.0f, -1.5f, 5.3f, L"ground1.png");
+        AddPlatform(PlatformType::Ice, 0.0f, 5.5f, 3.0f, 5.8f, L"ice1.png");
+        AddPlatform(PlatformType::PassThrough, -2.0f, 7.0f, 0.5f, 7.2f, L"passThrough1.png");
+        AddPlatform(PlatformType::Normal, 1.5f, 7.0f, 4.0f, 7.3f, L"ground1.png");
 
-      // 2층
-      AddPlatform(PlatformType::Normal, -4.0f, 5.0f, -1.5f, 5.3f, L"ground1.png");
-      AddPlatform(PlatformType::Ice, 0.0f, 5.5f, 3.0f, 5.8f, L"ice1.png");
-      AddPlatform(PlatformType::Normal, -2.0f, 7.0f, 0.5f, 7.3f, L"ground1.png");
-      AddPlatform(PlatformType::Normal, 1.5f, 7.0f, 4.0f, 7.3f, L"ground1.png");
+        // ── 3층 ──
+        AddPlatform(PlatformType::Normal, -3.5f, 9.0f, -2.0f, 9.2f, L"ground1.png");
+        AddPlatform(PlatformType::Ice, -0.5f, 9.5f, 1.5f, 9.7f, L"ice1.png");
+        AddPlatform(PlatformType::Normal, 2.5f, 10.0f, 4.5f, 10.2f, L"ground1.png");
+        AddPlatform(PlatformType::Vanishing, -1.0f, 11.5f, 1.5f, 11.7f, L"vanishing1.png");
 
-      // ── 3층 ──
-      AddPlatform(PlatformType::Normal, -3.5f, 9.0f, -2.0f, 9.2f, L"ground1.png");
-      AddPlatform(PlatformType::Ice, -0.5f, 9.5f, 1.5f, 9.7f, L"ice1.png");
-      AddPlatform(PlatformType::Normal, 2.5f, 10.0f, 4.5f, 10.2f, L"ground1.png");
-      AddPlatform(PlatformType::Vanishing, -1.0f, 11.5f, 1.5f, 11.7f, L"vanishing1.png");
+        // ── 4층 ──
+        AddPlatform(PlatformType::Reverse, -4.0f, 13.0f, -1.0f, 13.3f, L"reverse1.png");
+        AddPlatform(PlatformType::Ice, 0.5f, 13.5f, 3.5f, 13.8f, L"ice1.png");
+        AddPlatform(PlatformType::Moving, -2.0f, 15.5f, 2.0f, 15.8f, L"moving1.png");
 
-      // ── 4층 ──
-      AddPlatform(PlatformType::Reverse, -4.0f, 13.0f, -1.0f, 13.3f, L"reverse1.png");
-      AddPlatform(PlatformType::Ice, 0.5f, 13.5f, 3.5f, 13.8f, L"ice1.png");
-      AddPlatform(PlatformType::Moving, -2.0f, 15.5f, 2.0f, 15.8f, L"moving1.png");
-
-      // ── 5층 ──
-      AddPlatform(PlatformType::Normal, -4.5f, 17.0f, -2.0f, 17.3f, L"ground1.png");
-      AddPlatform(PlatformType::Ice, 2.0f, 17.3f, 4.5f, 17.6f, L"ice1.png");
-
-      // ── 6층 ──
-      AddPlatform(PlatformType::Normal, -3.0f, 19.0f, -1.0f, 19.3f, L"ground1.png");
-      AddPlatform(PlatformType::Normal, 1.0f, 19.5f, 3.0f, 19.8f, L"ground1.png");
-
-      // ── 7층 ──
-      AddPatternPlatform(PlatformType::Normal, -4.5f, 20.5f, -2.5f, 20.8f, L"ground1.png");
-      AddPatternPlatform(PlatformType::Ice, -1.0f, 21.4f, 1.0f, 21.7f, L"ice1.png");
-      AddPatternPlatform(PlatformType::Reverse, 2.0f, 22.4f, 4.0f, 22.7f, L"reverse1.png");
-      AddPatternPlatform(PlatformType::Normal, 0.0f, 23.4f, 2.0f, 23.7f, L"ground1.png");
-      AddPatternPlatform(PlatformType::Ice, -3.0f, 24.4f, -1.0f, 24.7f, L"ice1.png");
-
-      // ── 8층 ──
-      AddPlatform(PlatformType::Bomb, -4.5f, 26.0f, -2.5f, 26.3f, L"ground1.png");
-      AddPlatform(PlatformType::Moving, -0.5f, 26.5f, 1.5f, 26.8f, L"moving1.png");
-
-      // ── 9층 ──
-      AddPlatform(PlatformType::Ice, -3.0f, 29.1f, -0.5f, 29.4f, L"ice1.png");
-      AddPlatform(PlatformType::Reverse, 1.5f, 28.5f, 4.0f, 28.8f, L"reverse1.png");
-
-      // ── 10층 ──
-      AddPlatform(PlatformType::Bomb, 1.0f, 30.3f, 2.0f, 30.6f, L"ground1.png");
-      AddPlatform(PlatformType::Normal, 3.0f, 31.3f, 4.0f, 31.6f, L"ground1.png");
-
-      // ── 11층 ──
-      AddPlatform(PlatformType::Normal, 1.0f, 32.3f, 2.0f, 32.6f, L"ground1.png");
-      AddPlatform(PlatformType::Normal, 3.0f, 33.3f, 4.0f, 33.6f, L"ground1.png");
-
-      // ── 12층 ──
-      AddPlatform(PlatformType::Normal, 1.0f, 34.3f, 2.0f, 34.6f, L"ground1.png");
-      AddPlatform(PlatformType::Normal, -0.8f, 34.3f, -0.2f, 34.6f, L"ground1.png");
-      AddPlatform(PlatformType::Normal, -2.8f, 34.3f, -2.2f, 34.6f, L"ground1.png");
-
-      AddPlatform(PlatformType::Normal, -3.8f, 35.3f, -3.2f, 35.6f, L"ground1.png");
-
-      // ── 13층 ──
-      AddPlatform(PlatformType::Vanishing, -3.8f, 37.0f, -3.2f, 37.3f, L"vanishing2.png");
-
-      AddPlatform(PlatformType::Normal, -1.1f, 37.0f, -0.1f, 37.3f, L"ground1.png");
-
-      AddPlatform(PlatformType::Ice, 1.8f, 37.0f, 2.2f, 37.3f, L"ice1.png");
-
-      // ── 14층 ──
-      AddPlatform(PlatformType::Ice, 3.8f, 38.5f, 4.2f, 38.8f, L"ice1.png");
-
-      AddPlatform(PlatformType::Ice, 1.8f, 40.0f, 2.2f, 40.3f, L"ice1.png");
-
-      AddPlatform(PlatformType::Ice, 3.4f, 41.5f, 4.2f, 41.8f, L"ice1.png");
-
-      // ── 15층 ──
-      AddPlatform(PlatformType::Moving, -1.0f, 42.5f, 1.2f, 42.8f, L"moving1.png");
-
-      AddPlatform(PlatformType::Moving, -3.0f, 44.3f, -2.5f, 44.6f, L"moving2.png");
-
-      AddPlatform(PlatformType::Moving, -1.0f, 46.3f, -0.5f, 46.6f, L"moving2.png");
-
-      AddPlatform(PlatformType::Moving, -3.0f, 48.3f, -2.5f, 48.6f, L"moving2.png");
-
-      if (PatternPlatforms.size() >= 2)
-      {
-        PatternPlatforms[0]->IsActive = true;
-        PatternPlatforms[0]->Owner->Visible = true;
-
-        PatternPlatforms[1]->IsActive = true;
-        PatternPlatforms[1]->Owner->Visible = true;
-      }
-
-      // ── 꼭대기 (골인) ──
-      AddPlatform(PlatformType::Normal, -1.5f, 49.6f, 1.5f, 49.9f, L"ground1.png");
+        // ── 꼭대기 ──
+        AddPlatform(PlatformType::Normal, -1.5f, 17.5f, 1.5f, 17.8f, L"ground1.png");
     }
 
     // ────────────────────────────────────────────────────────
@@ -2261,15 +1941,12 @@ public:
         XMFLOAT4 color = { 1, 1, 1, 1 };
         switch (type)
         {
-            case PlatformType::Normal:      color = { 0.5f, 0.4f, 0.3f, 1.0f }; break;
-            case PlatformType::Ice:         color = { 0.6f, 0.9f, 1.0f, 1.0f }; break;
-            case PlatformType::PassThrough: color = { 0.4f, 0.8f, 0.4f, 1.0f }; break;
-            case PlatformType::Vanishing:   color = { 1.0f, 0.3f, 0.3f, 1.0f }; break;
-            case PlatformType::Reverse:     color = { 0.8f, 0.3f, 1.0f, 1.0f }; break;
-            case PlatformType::Moving:      color = { 1.0f, 0.8f, 0.2f, 1.0f }; break;
-            case PlatformType::Bomb:        color = { 1.0f, 0.5f, 0.2f, 1.0f }; break;
-            case PlatformType::Wall:        color = { 1.0f, 1.0f, 0.2f, 1.0f }; break;
-            case PlatformType::Background:  color = { 1.0f, 1.0f, 1.0f, 1.0f }; break;
+        case PlatformType::Normal:      color = { 0.5f, 0.4f, 0.3f, 1.0f }; break;
+        case PlatformType::Ice:         color = { 0.6f, 0.9f, 1.0f, 1.0f }; break;
+        case PlatformType::PassThrough: color = { 0.4f, 0.8f, 0.4f, 1.0f }; break;
+        case PlatformType::Vanishing:   color = { 1.0f, 0.3f, 0.3f, 1.0f }; break;
+        case PlatformType::Reverse:     color = { 0.8f, 0.3f, 1.0f, 1.0f }; break;
+        case PlatformType::Moving:      color = { 1.0f, 0.8f, 0.2f, 1.0f }; break;
         }
 
         auto* mat = new ColorMaterial(DefaultShaders, color, &Gfx);
@@ -2286,63 +1963,13 @@ public:
         Platforms.push_back(go);
     }
 
-    void AddPatternPlatform(
-      PlatformType type,
-      float lx, float by, float rx, float ty,
-      const wchar_t* texPath = nullptr)
-    {
-      float w = rx - lx;
-      float h = ty - by;
-      float cx = (lx + rx) * 0.5f;
-      float cy = (by + ty) * 0.5f;
-
-      XMFLOAT4 color = { 1,1,1,1 };
-
-      switch (type)
-      {
-      case PlatformType::Normal:      color = { 0.5f, 0.4f, 0.3f, 1.0f }; break;
-      case PlatformType::Ice:         color = { 0.6f, 0.9f, 1.0f, 1.0f }; break;
-      case PlatformType::PassThrough: color = { 0.4f, 0.8f, 0.4f, 1.0f }; break;
-      case PlatformType::Vanishing:   color = { 1.0f, 0.3f, 0.3f, 1.0f }; break;
-      case PlatformType::Reverse:     color = { 0.8f, 0.3f, 1.0f, 1.0f }; break;
-      case PlatformType::Moving:      color = { 1.0f, 0.8f, 0.2f, 1.0f }; break;
-      case PlatformType::Bomb:        color = { 1.0f, 0.5f, 0.2f, 1.0f }; break;
-      case PlatformType::Wall:        color = { 1.0f, 1.0f, 0.2f, 1.0f }; break;
-      case PlatformType::Background:  color = { 1.0f, 1.0f, 1.0f, 1.0f }; break;
-      }
-
-      auto* mat = new ColorMaterial(DefaultShaders, color, &Gfx);
-      OwnedMaterials.push_back(mat);
-
-      auto* srv = TexCache.Get(texPath);
-      if (srv) mat->SetTexture(srv);
-
-      auto* go = new GameObject(cx, cy);
-      go->Scale = { w, h };
-
-      go->AddComponent(new MeshRenderer(QuadMesh, mat));
-
-      auto* plat = new PlatformComp(type);
-
-      // 처음엔 비활성
-      plat->IsActive = false;
-      go->Visible = false;
-
-      go->AddComponent(plat);
-
-      Platforms.push_back(go);
-
-      // 패턴 플랫폼 등록
-      PatternPlatforms.push_back(plat);
-    }
-
     // ── 랜덤박스 배치 ────────────────────────────────────────
     void BuildRandomBoxes()
     {
-        AddRandomBox(-2.0f, 29.6f);
+        AddRandomBox(0.0f, 2.5f);
+        AddRandomBox(3.0f, 6.0f);
+        AddRandomBox(-2.0f, 10.0f);
         AddRandomBox(1.0f, 14.0f);
-        AddRandomBox(-0.5f, 37.5f);
-        AddRandomBox(2.0f, 20.0f);
     }
 
     void AddRandomBox(float cx, float cy,
@@ -2422,44 +2049,6 @@ public:
         Cam.Pos = { startX, startY };
     }
 
-    // ── 골(클리어 지점) 조립 ─────────────────────────────────
-    void BuildGoal()
-    {
-        if (World.empty()) return;
-        GameObject* player = World[0];
-
-        // 골 마커 머티리얼 (goal.png 있으면 텍스처, 없으면 금색 사각형) //지우면 아예 보이지 않고 판정은 살아있음
-        auto* matGoal = new ColorMaterial(DefaultShaders, { 1.0f, 0.85f, 0.2f, 1.0f }, &Gfx);
-        OwnedMaterials.push_back(matGoal);
-        if (auto* srv = TexCache.Get(L"goal.png")) matGoal->SetTexture(srv);
-
-        // 미션 배너 머티리얼 (MISSION COMPLETE 이미지)
-        auto* matMission = new ColorMaterial(DefaultShaders, { 1, 1, 1, 1 }, &Gfx);
-        OwnedMaterials.push_back(matMission);
-        if (auto* srv = TexCache.Get(L"mission_complete.png")) matMission->SetTexture(srv);
-
-        // [클리어 지점] ★ 이 좌표만 바꾸면 골 위치가 바뀝니다.
-        //   좌클릭으로 원하는 위치의 월드 좌표를 콘솔에 찍어보고 그 값을 넣으세요.
-        auto* goal = new GameObject(0.0f, 50.0f);   // 현재 맵 꼭대기 근처
-        goal->Scale = { 3.3f, 0.85f };                 // 닿을 영역 크기
-
-        goal->AddComponent(new MeshRenderer(QuadMesh, matGoal));   // 보이는 마커 //지우면 아예 보이지 않고 판정은 살아있음
-
-        auto* gc = new GoalComp();
-        gc->Player = player;
-        gc->Cleared = &Cleared;
-        goal->AddComponent(gc);                                    // 판정
-
-        auto* banner = new MissionBanner();
-        banner->Cam = &Cam;
-        banner->Cleared = &Cleared;
-        banner->Mat = matMission;
-        banner->Quad = QuadMesh;
-        goal->AddComponent(banner);                                // 표시
-
-        World.push_back(goal);   // World 에 넣으면 Update/Render/삭제 자동
-    }
-
     // ────────────────────────────────────────────────────────
     void Run()
     {
@@ -2492,76 +2081,9 @@ public:
         for (auto* go : RandomBoxes) go->Input();
     }
 
-    void UpdatePatternPlatforms(float dt)
-    {
-      if (PatternPlatforms.size() < 2)
-        return;
-
-      PatternTimer += dt;
-
-      int current = PatternIndex;
-      int next = (PatternIndex + 1) % PatternPlatforms.size();
-
-      // ---------------------------
-      // 사라질 플랫폼만 깜빡임
-      // ---------------------------
-
-      float blinkStart = PatternInterval - 0.2f;
-
-      if (PatternTimer >= blinkStart)
-      {
-        bool visible =
-          ((int)(PatternTimer * 10.0f) % 2) == 0;
-
-        PatternPlatforms[current]->Owner->Visible = visible;
-
-        // 다음 플랫폼은 계속 보임
-        PatternPlatforms[next]->Owner->Visible = true;
-      }
-      else
-      {
-        PatternPlatforms[current]->Owner->Visible = true;
-        PatternPlatforms[next]->Owner->Visible = true;
-      }
-
-      // ---------------------------
-      // 패턴 전환
-      // ---------------------------
-
-      if (PatternTimer >= PatternInterval)
-      {
-        PatternTimer = 0.0f;
-
-        PatternIndex++;
-
-        if (PatternIndex >= PatternPlatforms.size())
-          PatternIndex = 0;
-
-        // 전부 끄기
-        for (auto* plat : PatternPlatforms)
-        {
-          plat->IsActive = false;
-          plat->Owner->Visible = false;
-        }
-
-        current = PatternIndex;
-        next = (PatternIndex + 1) % PatternPlatforms.size();
-
-        // 현재 + 다음 활성화
-        PatternPlatforms[current]->IsActive = true;
-        PatternPlatforms[current]->Owner->Visible = true;
-
-        PatternPlatforms[next]->IsActive = true;
-        PatternPlatforms[next]->Owner->Visible = true;
-      }
-    }
-
     void Update()
     {
         float dt = Timer.Get();
-
-        UpdatePatternPlatforms(dt);
-
         for (auto* go : Platforms)   go->Update(dt, &Gfx);
         for (auto* go : World)       go->Update(dt, &Gfx);
         for (auto* go : RandomBoxes) go->Update(dt, &Gfx);
@@ -2627,16 +2149,24 @@ LRESULT CALLBACK WndProc(HWND h, UINT m, WPARAM w, LPARAM l)
 // ============================================================
 int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int)
 {
+    // ── ★ 게임 시작 시 로그 시스템 초기화 ──
+    Logger::Get()->Initialize("EngineLog.txt");
+    Logger::Get()->Log(LogLevel::Info, "===== JumpKing Game Engine Spin-up =====");
+
     GameLoop engine;
     g_Engine = &engine;
 
     if (!engine.Initialize(hInst, WndProc))
     {
+        Logger::Get()->Log(LogLevel::Error, "Engine Initialization Failed!");
         MessageBoxA(NULL, "Initialization failed!", "Error", MB_OK);
         return -1;
     }
 
+    Logger::Get()->Log(LogLevel::Info, "Engine Base Components Ready. Entering Main Loop...");
     engine.Run();
+
     g_Engine = nullptr;
+    Logger::Get()->Log(LogLevel::Info, "===== JumpKing Game Engine Clean Shutdown =====");
     return 0;
 }
